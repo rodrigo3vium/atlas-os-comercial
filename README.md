@@ -4,6 +4,31 @@ Sistema de inteligência comercial para clínicas médicas brasileiras. Captura 
 
 ---
 
+## Status do Projeto (2026-05-16)
+
+### Concluído
+- [x] Schema completo aplicado no Supabase remoto (13 tabelas, RLS, RPCs, GRANTs)
+- [x] Todos os módulos de negócio (`lib/modules/`)
+- [x] Webhooks Evolution + Zapier/Plaud (ack-first)
+- [x] 7 crons configurados no Vercel (`vercel.json`)
+- [x] Todas as telas do painel (dashboard, leads, calls, whatsapp, rondas, configurações, auth)
+- [x] Templates de email pt-BR (invite + recovery)
+- [x] Suite de testes (8 integração + 3 unitários)
+- [x] Script de provisionamento de usuários (`npm run admin:create-user`)
+- [x] Tipos TypeScript gerados do schema (`lib/supabase/types.ts`)
+- [x] Build limpo (zero erros de tipo)
+- [x] Repositório no GitHub
+
+### Próximos passos
+- [ ] Deploy no Vercel (conectar repo + env vars de produção)
+- [ ] Criar primeiro usuário admin via `npm run admin:create-user`
+- [ ] Configurar Resend como SMTP do Supabase Auth (dashboard Supabase → Auth → SMTP)
+- [ ] Configurar Evolution instance real em `/configuracoes`
+- [ ] Teste end-to-end: 1 mensagem WhatsApp real + 1 call de teste
+- [ ] Rodar testes de integração (requer Docker + `supabase start`)
+
+---
+
 ## Visão Geral
 
 **Problema:** secretárias atendem leads no WhatsApp e closers gravam calls no Plaud. Ninguém revisa qualidade ou detecta tendências até o resultado do mês aparecer.
