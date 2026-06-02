@@ -1,11 +1,11 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PROMPT_VERSION, SYSTEM_PROMPT } from "@/lib/prompts/analyze-whatsapp";
 import { recomputarStatusLead, type LeadStatus } from "@/lib/modules/lead-status-machine";
 import { dispararAlertaSeNecessario } from "@/lib/modules/alerta-imediato";
 import { log } from "@/lib/log";
 
-const MODELO = "claude-sonnet-4-6";
+const MODELO = "gpt-4o";
 const BATCH_SIZE = 10;
 const JANELA_MENSAGENS = 50;
 
@@ -26,11 +26,11 @@ type AnaliseIA = {
   origem_confidence: number | null;
 };
 
-let _anthropic: Anthropic | null = null;
+let _openai: OpenAI | null = null;
 
-function getAnthropicClient() {
-  if (!_anthropic) _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  return _anthropic;
+function getOpenAIClient() {
+  if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return _openai;
 }
 
 export async function analisarConversasPendentes(
@@ -90,35 +90,19 @@ async function analisarConversa(
     .map((m) => `[${m.remetente === "lead" ? "Lead" : "Clínica"}] ${m.conteudo ?? "[mídia]"}`)
     .join("\n");
 
-  const client = getAnthropicClient();
+  const client = getOpenAIClient();
 
-  const response = await client.messages.create({
+  const response = await client.chat.completions.create({
     model: MODELO,
     max_tokens: 4096,
-    system: [
-      {
-        type: "text",
-        text: SYSTEM_PROMPT,
-        cache_control: { type: "ephemeral" },
-      },
-    ],
+    response_format: { type: "json_object" },
     messages: [
-      {
-        role: "user",
-        content: `Analise esta conversa WhatsApp:\n\n${conversaTexto}`,
-      },
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: `Analise esta conversa WhatsApp:\n\n${conversaTexto}` },
     ],
   });
 
-  const textBlock = response.content.find((c) => c.type === "text");
-  if (!textBlock || textBlock.type !== "text") {
-    throw new Error("Resposta Anthropic sem conteúdo de texto");
-  }
-
-  const rawText = textBlock.text
-    .replace(/^```(?:json)?\s*\n?/, "")
-    .replace(/\n?```\s*$/, "")
-    .trim();
+  const rawText = response.choices[0]?.message?.content ?? "";
   const analise = JSON.parse(rawText) as AnaliseIA;
 
   await supabase
@@ -137,8 +121,8 @@ async function analisarConversa(
       total_mensagens_analisadas: mensagens.length,
       modelo: MODELO,
       prompt_versao: PROMPT_VERSION,
-      tokens_entrada: response.usage?.input_tokens ?? null,
-      tokens_saida: response.usage?.output_tokens ?? null,
+      tokens_entrada: response.usage?.prompt_tokens ?? null,
+      tokens_saida: response.usage?.completion_tokens ?? null,
     })
     .throwOnError();
 

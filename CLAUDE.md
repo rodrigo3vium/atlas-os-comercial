@@ -21,9 +21,8 @@ Sistema de inteligência comercial **single-tenant** para clínicas médicas bra
 | Erros | **`.throwOnError()`** obrigatório em toda query. Sem `if (error)` manual |
 | Queries complexas | Viram RPC (função Postgres). Não criar queries SQL inline longas no TS |
 | Tailwind | **v3.4**. Não migrar para v4 |
-| Modelo IA (calls) | **`gpt-4o`** (OpenAI) — analisador de calls usa `OPENAI_API_KEY` |
-| Modelo IA (whatsapp) | **`claude-sonnet-4-6`** — analisador de WhatsApp usa `ANTHROPIC_API_KEY` |
-| Prompt caching | **`cache_control: { type: "ephemeral" }`** apenas nos prompts Anthropic (analisador-whatsapp) |
+| Modelo IA | **`gpt-4o`** (OpenAI) em todas as análises. Usa `OPENAI_API_KEY`. |
+| Prompt caching | N/A — OpenAI usa `response_format: { type: "json_object" }` nos dois analisadores |
 | Timestamps | **`timestamptz`** no banco. Nunca `timestamp without time zone` |
 | Telefone | **E.164** (`+5511...`). Normalizar via `lib/phone.ts` |
 | Migrations | Arquivos em `supabase/migrations/`. Nunca editar migration já aplicada — criar nova |
