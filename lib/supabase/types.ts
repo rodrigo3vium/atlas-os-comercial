@@ -62,6 +62,7 @@ export type Database = {
           conversa_id: string;
           created_at: string;
           diagnostico: string | null;
+          fases: Json;
           id: string;
           modelo: string;
           origem_confidence: number | null;
@@ -80,6 +81,7 @@ export type Database = {
           conversa_id: string;
           created_at?: string;
           diagnostico?: string | null;
+          fases?: Json;
           id?: string;
           modelo: string;
           origem_confidence?: number | null;
@@ -98,6 +100,7 @@ export type Database = {
           conversa_id?: string;
           created_at?: string;
           diagnostico?: string | null;
+          fases?: Json;
           id?: string;
           modelo?: string;
           origem_confidence?: number | null;

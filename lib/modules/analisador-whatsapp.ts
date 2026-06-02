@@ -1,6 +1,15 @@
 import OpenAI from "openai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PROMPT_VERSION, SYSTEM_PROMPT } from "@/lib/prompts/analyze-whatsapp";
+import {
+  PESOS_DIAGNOSTICO,
+  RUBRIC_VERSION_DIAGNOSTICO,
+  computeScoreGlobal,
+  recomendacoesParaTexto,
+  type WhatsappAnalysisModel,
+  type WhatsappAnalysisResult,
+} from "@/lib/analysis/commercial-rubric";
+import type { Json } from "@/lib/supabase/types";
 import { recomputarStatusLead, type LeadStatus } from "@/lib/modules/lead-status-machine";
 import { dispararAlertaSeNecessario } from "@/lib/modules/alerta-imediato";
 import { log } from "@/lib/log";
@@ -12,18 +21,6 @@ const JANELA_MENSAGENS = 50;
 export type ResultadoAnalise = {
   analisadas: number;
   erros: number;
-};
-
-type AnaliseIA = {
-  score: number;
-  tags_positivas: string[];
-  tags_negativas: string[];
-  resumo: string | null;
-  diagnostico: string | null;
-  acao_recomendada: string | null;
-  lead_status: string;
-  origem_detectada: string | null;
-  origem_confidence: number | null;
 };
 
 let _openai: OpenAI | null = null;
@@ -103,19 +100,31 @@ async function analisarConversa(
   });
 
   const rawText = response.choices[0]?.message?.content ?? "";
-  const analise = JSON.parse(rawText) as AnaliseIA;
+  const analise = JSON.parse(rawText) as WhatsappAnalysisModel;
+
+  // Score global é calculado AQUI (ponderado pela régua de diagnóstico), nunca
+  // pelo modelo.
+  const scoreGlobal = computeScoreGlobal(analise.blocos ?? [], PESOS_DIAGNOSTICO);
+
+  const resultado: WhatsappAnalysisResult = {
+    ...analise,
+    rubric_version: RUBRIC_VERSION_DIAGNOSTICO,
+    score_global: scoreGlobal,
+  };
 
   await supabase
     .schema("comercial")
     .from("analises_whatsapp")
     .insert({
       conversa_id: conversaId,
-      score: analise.score,
-      tags_positivas: analise.tags_positivas ?? [],
-      tags_negativas: analise.tags_negativas ?? [],
-      resumo: analise.resumo ?? null,
-      diagnostico: analise.diagnostico ?? null,
-      acao_recomendada: analise.acao_recomendada ?? null,
+      score: scoreGlobal,
+      fases: resultado as unknown as Json,
+      // Colunas legadas (dashboard/listas) preenchidas a partir do blob estruturado.
+      tags_positivas: analise.flags_positivas ?? [],
+      tags_negativas: analise.flags_negativas ?? [],
+      resumo: analise.leitura ?? null,
+      diagnostico: null,
+      acao_recomendada: recomendacoesParaTexto(analise.recomendacoes ?? []),
       origem_detectada: analise.origem_detectada ?? null,
       origem_confidence: analise.origem_confidence ?? null,
       total_mensagens_analisadas: mensagens.length,
@@ -131,7 +140,7 @@ async function analisarConversa(
   await supabase
     .schema("comercial")
     .from("conversas")
-    .update({ ultimo_score: analise.score, ultima_analise_em: agora })
+    .update({ ultimo_score: scoreGlobal, ultima_analise_em: agora })
     .eq("id", conversaId)
     .throwOnError();
 
@@ -181,7 +190,7 @@ async function analisarConversa(
         leadId,
         lead.nome as string,
         lead.telefone as string,
-        analise.score,
+        scoreGlobal,
         supabase,
       );
     }

@@ -4,10 +4,11 @@ import { PROMPT_VERSION, SYSTEM_PROMPT_ANALISE } from "@/lib/prompts/analyze-cal
 import {
   RUBRIC_VERSION,
   computeScoreGlobal,
+  recomendacoesParaTexto,
   tierFromScore,
   type CallAnalysisModel,
   type CallAnalysisResult,
-} from "@/lib/analysis/call-rubric";
+} from "@/lib/analysis/commercial-rubric";
 import type { Json } from "@/lib/supabase/types";
 import { matchCallLead } from "@/lib/modules/matcher-call-lead";
 import { dispararAlertaSeNecessario } from "@/lib/modules/alerta-imediato";
@@ -20,13 +21,6 @@ export type ResultadoAnaliseCall = {
   analisadas: number;
   erros: number;
 };
-
-// Serializa as recomendações estruturadas em texto curto para preencher a coluna
-// legada `acao_recomendada` (consumida por dashboard/rondas/listas).
-function recomendacoesParaTexto(recomendacoes: CallAnalysisModel["recomendacoes"]): string | null {
-  if (!recomendacoes?.length) return null;
-  return recomendacoes.map((r, i) => `${i + 1}) [${r.gatilho}] ${r.script}`).join("\n");
-}
 
 let _openai: OpenAI | null = null;
 
