@@ -22,7 +22,7 @@ Sistema de inteligência comercial **single-tenant** para clínicas médicas bra
 | Queries complexas | Viram RPC (função Postgres). Não criar queries SQL inline longas no TS |
 | Tailwind | **v3.4**. Não migrar para v4 |
 | Modelo IA | **`gpt-4o`** (OpenAI) em todas as análises. Usa `OPENAI_API_KEY`. |
-| Prompt caching | N/A — OpenAI usa `response_format: { type: "json_object" }` nos dois analisadores |
+| Prompt caching | N/A — OpenAI usa `response_format: { type: "json_object" }` em todos os módulos de IA |
 | Timestamps | **`timestamptz`** no banco. Nunca `timestamp without time zone` |
 | Telefone | **E.164** (`+5511...`). Normalizar via `lib/phone.ts` |
 | Migrations | Arquivos em `supabase/migrations/`. Nunca editar migration já aplicada — criar nova |
@@ -114,9 +114,12 @@ app/
   api/
     cron/         # 7 crons (protegidos por CRON_SECRET)
     webhooks/     # evolution + zapier-plaud
+components/
+  analysis/       # Componentes agnósticos de análise: ScoreRing, BlocoBar, CopyScriptButton
 lib/
+  analysis/       # Régua comercial: commercial-rubric.ts (pesos, tipos, computeScoreGlobal)
   modules/        # Lógica de negócio (sem dependências de framework)
-  prompts/        # System prompts Claude (analyze-call, analyze-whatsapp)
+  prompts/        # System prompts OpenAI (analyze-call v3, analyze-whatsapp v3, match)
   supabase/       # Clientes (client, server, middleware) + types.ts
   phone.ts        # Normalização E.164
   log.ts          # Logger estruturado JSON
@@ -129,6 +132,51 @@ supabase/
 
 ---
 
+## Arquitetura de Análise IA
+
+Ambas as fatias (calls e whatsapp) seguem o **mesmo padrão v3**:
+
+### Regra de ouro
+O modelo **nunca** devolve score, peso ou classificação. Devolve apenas `nota_0_10` (0–10) por bloco + texto. O score global é calculado no código via `computeScoreGlobal(blocos, pesos)` em `lib/analysis/commercial-rubric.ts`.
+
+### Régua comercial (`lib/analysis/commercial-rubric.ts`)
+Fonte única para as duas fatias. Exporta:
+- `PESOS_FECHAMENTO` + `NOMES_FECHAMENTO` — régua de calls (soma = 100, bônus `rapport_0_10` fora da soma)
+- `PESOS_DIAGNOSTICO` + `NOMES_DIAGNOSTICO` — régua de whatsapp (soma = 100, sem bônus)
+- `computeScoreGlobal(blocos, pesos)` — recebe o mapa de pesos da régua aplicável
+- `tierFromScore`, `notaCor`, `flagLabel`, `isStructuredResult` — helpers compartilhados
+- `WhatsappAnalysisModel` / `WhatsappAnalysisResult` — tipos da fatia WhatsApp
+- `CallAnalysisModel` / `CallAnalysisResult` — tipos da fatia Calls
+
+### Output do modelo (JSON estruturado)
+```json
+{
+  "leitura": "Veredicto em 1-2 frases.",
+  "flags_positivas": ["slug"],
+  "flags_negativas": ["slug"],
+  "blocos": [
+    { "id": "A", "nota_0_10": 8, "analise": "...", "citacoes": [{ "quote": "..." }] }
+  ],
+  "recomendacoes": [{ "gatilho": "...", "racional": "...", "script": "...", "bloco_ref": "E" }],
+  "lead_status": "agendou",
+  "origem_detectada": "instagram",
+  "origem_confidence": 0.9
+}
+```
+Calls adicionam `etapa` e `rapport_0_10` (bônus). WhatsApp não tem `rapport`.
+
+### Componentes agnósticos (`components/analysis/`)
+- `ScoreRing` — anel SVG com stroke colorido por tier
+- `BlocoBar` — `<details>` expansível, recebe `bloco`, `nome` e `peso` como props
+- `CopyScriptButton` — copia script para clipboard
+
+A página resolve o mapa certo (`NOMES_FECHAMENTO`/`PESOS_FECHAMENTO` em calls, `NOMES_DIAGNOSTICO`/`PESOS_DIAGNOSTICO` em whatsapp) e passa via props. Os componentes são agnósticos de régua.
+
+### Fallback
+Análises antigas (formato prosa, sem `fases.blocos`) são detectadas por `isStructuredResult(fases)`. Quando falso, a página renderiza o fallback de prosa (`resumo`/`diagnostico`/`acao_recomendada`). Sem parser de prosa.
+
+---
+
 ## Armadilhas Conhecidas
 
 | Problema | Causa | Fix |
@@ -137,7 +185,7 @@ supabase/
 | `admin:create-user` falha com "table not found" | Script usa `.from("autorizados")` que cai em `public` | Já corrigido: usa `.schema("comercial").from("autorizados")` |
 | `get_dashboard` retorna erro `42803` | `avg()` aninhado dentro de `jsonb_agg()` não é permitido no PostgreSQL | Já corrigido em `20260516000001_melhorias.sql`: avg() movido para subquery |
 | Seed não roda via `supabase db seed` | Schema `comercial` não está no `search_path` padrão do CLI | Rodar o `seed.sql` manualmente no SQL Editor do Supabase |
-| Cron de análise retorna `erros: N` para todas as conversas/calls | Modelo retorna JSON embrulhado em ` ```json ` mesmo com instrução "sem markdown" — `JSON.parse` falha no backtick | Já corrigido (commit `ba6968c`): analisadores fazem strip de markdown fences antes do parse (`rawText.replace(/^\`\`\`(?:json)?\s*\n?/, "")`) |
+| Cron de análise retorna `erros: N` para todas as conversas/calls | Modelo retorna JSON inválido (estrutura antiga ou falta de campo obrigatório) | Conferir `prompt_versao` no banco — se for `v1`/`v2-vitor`, re-rodar `npm run demo:analises` após zerar `ultima_analise_em`/`analisada_em` |
 | `db:seed-demo` falha com timeout de conexão | `psql` tenta IPv6 (`2600:…`) que não é roteado em algumas redes/VPNs | Usar string do **pooler** em `DEMO_DATABASE_URL` (Session mode, `aws-0-sa-east-1.pooler.supabase.com:5432`) ou colar o seed no SQL Editor e rodar só `npm run demo:analises` |
 | Vercel continua servindo commit antigo após push na branch `demo` | "Promote to Production" anterior foi pontual — não altera o Production Branch permanentemente | Settings → Git → Production Branch = `demo`; se a opção não aparecer, ir em Deployments → encontrar o commit desejado → `...` → Promote to Production |
 
@@ -196,5 +244,8 @@ Ver `.env.example` na raiz. Resumo das críticas:
 ```bash
 # Roda o seed completo no SQL Editor do Supabase (não via CLI — schema comercial não está no search_path padrão)
 # Arquivo: supabase/seeds/seed.sql
-# Cria 25 leads, 12 conversas, ~60 mensagens, 10 calls, 12 análises WhatsApp, 8 análises calls
+
+# Após o seed, gerar análises estruturadas (v3) com os motores reais:
+export $(grep -v '^#' .env.demo | xargs) && npm run demo:analises
+# Cria: 12 leads, 9 conversas, ~145 mensagens, 7 calls, 9 análises WhatsApp (v3), 7 análises calls (v3)
 ```
