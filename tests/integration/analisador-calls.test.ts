@@ -2,31 +2,46 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { analisarCallsPendentes } from "@/lib/modules/analisador-calls";
 import { getTestClient, limparDb } from "./setup";
 
+// Notas A=7,B=7,C=7,D=7,E=7,F=7,G=9 → score = (70+105+105+105+140+105+90)/10 = 72 → "bom"
 const MOCK_ANALISE_CALL = {
-  classificacao: "bom",
-  score_geral: 72,
-  fases: {
-    preparacao: { score: 80, observacao: "Closer estudou o histórico." },
-    abertura: { score: 70, observacao: "Bom rapport inicial." },
-    diagnostico: { score: 75, observacao: "Perguntas adequadas." },
-    apresentacao_clinica: { score: 80, observacao: "Apresentação clara." },
-    apresentacao_investimento: { score: 65, observacao: "Faltou ancoragem de valor." },
-    fechamento: { score: 60, observacao: "Não propôs próximos passos concretos." },
-    objecoes: { score: 70, observacao: "Contornou bem objeção de preço." },
-    sabotadores: { score: 85, observacao: "Sem sabotadores identificados." },
-  },
-  diagnostico: "Call competente mas com oportunidades de melhoria no fechamento.",
-  acao_recomendada: "Treinar apresentação do investimento com ancoragem de valor antes do preço.",
+  etapa: "fechamento",
+  leitura: "Call competente mas com oportunidades de melhoria no fechamento.",
+  flags_positivas: ["rapport_genuino", "diagnostico_em_camadas"],
+  sinais_vermelhos: ["preco_sem_ancoragem"],
+  blocos: [
+    { id: "A", nota_0_10: 7, analise: "Abertura com autoridade razoável.", citacoes: [] },
+    { id: "B", nota_0_10: 7, analise: "Diagnóstico em camadas parcialmente feito.", citacoes: [] },
+    {
+      id: "C",
+      nota_0_10: 7,
+      analise: "Apresentou resultado, mas citou procedimento.",
+      citacoes: [],
+    },
+    { id: "D", nota_0_10: 7, analise: "Validou antes do preço.", citacoes: [] },
+    { id: "E", nota_0_10: 7, analise: "Oferta feita sem silêncio.", citacoes: [] },
+    { id: "F", nota_0_10: 7, analise: "Contornou objeção parcialmente.", citacoes: [] },
+    { id: "G", nota_0_10: 9, analise: "Entrada de 30% concluída.", citacoes: [] },
+  ],
+  rapport_0_10: 7,
+  recomendacoes: [
+    {
+      gatilho: "Após apresentar o preço",
+      racional: "Silêncio após CTA aumenta taxa de fechamento.",
+      script: "Então, vamos agendar para a semana que vem?",
+      bloco_ref: "E",
+    },
+  ],
 };
 
-vi.mock("@anthropic-ai/sdk", () => ({
+vi.mock("openai", () => ({
   default: vi.fn().mockImplementation(() => ({
-    messages: {
-      create: vi.fn().mockResolvedValue({
-        content: [{ type: "text", text: JSON.stringify(MOCK_ANALISE_CALL) }],
-        usage: { input_tokens: 1000, output_tokens: 200 },
-        model: "claude-sonnet-4-6",
-      }),
+    chat: {
+      completions: {
+        create: vi.fn().mockResolvedValue({
+          choices: [{ message: { content: JSON.stringify(MOCK_ANALISE_CALL) } }],
+          usage: { prompt_tokens: 1000, completion_tokens: 200 },
+        }),
+      },
     },
   })),
 }));
@@ -85,8 +100,8 @@ describe("analisarCallsPendentes", () => {
     expect(analises).toHaveLength(1);
     expect(analises![0].classificacao).toBe("bom");
     expect(analises![0].score_geral).toBe(72);
-    expect(analises![0].modelo).toBe("claude-sonnet-4-6");
-    expect(analises![0].prompt_versao).toBe("v1");
+    expect(analises![0].modelo).toBe("gpt-4o");
+    expect(analises![0].prompt_versao).toBe("v3-estruturado");
   });
 
   it("marca analisada_em na call após análise", async () => {

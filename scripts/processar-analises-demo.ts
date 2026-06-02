@@ -31,8 +31,7 @@ function exigir(nome: string): string {
 async function main() {
   const url = exigir("NEXT_PUBLIC_SUPABASE_URL");
   const serviceKey = exigir("SUPABASE_SERVICE_ROLE_KEY");
-  // A análise é gerada pela API Anthropic — a key precisa ser REAL, não placeholder.
-  exigir("ANTHROPIC_API_KEY");
+  exigir("OPENAI_API_KEY");
 
   const supabase = createClient(url, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },

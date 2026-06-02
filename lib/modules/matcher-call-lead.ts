@@ -1,9 +1,9 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { SYSTEM_PROMPT_MATCH } from "@/lib/prompts/analyze-call";
 import { log } from "@/lib/log";
 
-const MODELO = "claude-sonnet-4-6";
+const MODELO = "gpt-4o";
 const THRESHOLD_AUTO = 0.85;
 
 export type Candidato = {
@@ -29,11 +29,11 @@ export function classificarCandidatos(
   return { tipo: "ambiguo", top3: candidatos.slice(0, 3) };
 }
 
-let _anthropic: Anthropic | null = null;
+let _openai: OpenAI | null = null;
 
-function getAnthropicClient() {
-  if (!_anthropic) _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  return _anthropic;
+function getOpenAIClient() {
+  if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return _openai;
 }
 
 export async function matchCallLead(callId: string, supabase: SupabaseClient): Promise<void> {
@@ -154,29 +154,21 @@ async function decidirComIA(
       .map((c, i) => `${i + 1}. ID: ${c.id} | Nome: ${c.nome} | Telefone: ${c.telefone}`)
       .join("\n");
 
-    const client = getAnthropicClient();
-    const response = await client.messages.create({
+    const client = getOpenAIClient();
+    const response = await client.chat.completions.create({
       model: MODELO,
       max_tokens: 256,
-      system: [
-        {
-          type: "text",
-          text: SYSTEM_PROMPT_MATCH,
-          cache_control: { type: "ephemeral" },
-        },
-      ],
+      response_format: { type: "json_object" },
       messages: [
-        {
-          role: "user",
-          content: `Call:\n${contextoCall}\n\nCandidatos:\n${listaCandidatos}`,
-        },
+        { role: "system", content: SYSTEM_PROMPT_MATCH },
+        { role: "user", content: `Call:\n${contextoCall}\n\nCandidatos:\n${listaCandidatos}` },
       ],
     });
 
-    const textBlock = response.content.find((c) => c.type === "text");
-    if (!textBlock || textBlock.type !== "text") return null;
+    const rawText = response.choices[0]?.message?.content ?? "";
+    if (!rawText) return null;
 
-    const parsed = JSON.parse(textBlock.text) as { lead_id: string | null; confidence: number };
+    const parsed = JSON.parse(rawText) as { lead_id: string | null; confidence: number };
     return parsed;
   } catch (err) {
     log.warn("matcher.ia_fallback", { erro: err instanceof Error ? err.message : String(err) });

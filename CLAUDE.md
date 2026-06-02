@@ -175,7 +175,7 @@ Ver `.env.example` na raiz. Resumo das críticas:
 | `CRON_SECRET` | Validar header nas rotas `/api/cron/*` |
 | `EVOLUTION_WEBHOOK_SECRET` | Validar HMAC nos webhooks Evolution |
 | `ZAPIER_WEBHOOK_SECRET` | Validar token nos webhooks Zapier |
-| `ANTHROPIC_API_KEY` | Somente server-side |
+| `OPENAI_API_KEY` | Somente server-side/crons |
 
 ---
 

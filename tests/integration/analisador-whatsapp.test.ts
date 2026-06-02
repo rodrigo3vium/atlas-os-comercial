@@ -2,26 +2,42 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { analisarConversasPendentes } from "@/lib/modules/analisador-whatsapp";
 import { getTestClient, limparDb } from "./setup";
 
+// Notas A=8,B=7,C=8,D=7,E=8,F=7,G=6 → score = (80+140+120+70+200+105+30)/10 = 75
 const MOCK_ANALISE = {
-  score: 75,
-  tags_positivas: ["resposta_rapida", "empatia"],
-  tags_negativas: ["sem_follow_up"],
-  resumo: "Lead pediu informações sobre o procedimento e a secretária respondeu bem.",
-  diagnostico: "Atendimento adequado com boa apresentação do procedimento.",
-  acao_recomendada: "Fazer follow-up em 48h para confirmar agendamento.",
+  leitura: "Lead pediu informações sobre o procedimento e a secretária respondeu bem.",
+  flags_positivas: ["abertura_com_autoridade", "diagnostico_completo"],
+  flags_negativas: ["sem_follow_up"],
+  blocos: [
+    { id: "A", nota_0_10: 8, analise: "Abertura com autoridade.", citacoes: [] },
+    { id: "B", nota_0_10: 7, analise: "Diagnóstico parcialmente feito.", citacoes: [] },
+    { id: "C", nota_0_10: 8, analise: "Autoridade bem construída.", citacoes: [] },
+    { id: "D", nota_0_10: 7, analise: "Consulta explicada com clareza.", citacoes: [] },
+    { id: "E", nota_0_10: 8, analise: "Agendamento realizado.", citacoes: [] },
+    { id: "F", nota_0_10: 7, analise: "Objeção parcialmente contornada.", citacoes: [] },
+    { id: "G", nota_0_10: 6, analise: "Sem antecipação de comparecimento.", citacoes: [] },
+  ],
+  recomendacoes: [
+    {
+      gatilho: "Ao final do agendamento",
+      racional: "Reduz no-show",
+      script: "Ótimo! Vou te enviar um lembrete amanhã.",
+      bloco_ref: "G",
+    },
+  ],
   lead_status: "agendou",
   origem_detectada: "instagram",
   origem_confidence: 0.9,
 };
 
-vi.mock("@anthropic-ai/sdk", () => ({
+vi.mock("openai", () => ({
   default: vi.fn().mockImplementation(() => ({
-    messages: {
-      create: vi.fn().mockResolvedValue({
-        content: [{ type: "text", text: JSON.stringify(MOCK_ANALISE) }],
-        usage: { input_tokens: 500, output_tokens: 100 },
-        model: "claude-sonnet-4-6",
-      }),
+    chat: {
+      completions: {
+        create: vi.fn().mockResolvedValue({
+          choices: [{ message: { content: JSON.stringify(MOCK_ANALISE) } }],
+          usage: { prompt_tokens: 500, completion_tokens: 100 },
+        }),
+      },
     },
   })),
 }));
@@ -128,9 +144,9 @@ describe("analisarConversasPendentes", () => {
 
     expect(analises).toHaveLength(1);
     expect(analises![0].score).toBe(75);
-    expect(analises![0].tags_positivas).toContain("resposta_rapida");
-    expect(analises![0].modelo).toBe("claude-sonnet-4-6");
-    expect(analises![0].prompt_versao).toBe("v1");
+    expect(analises![0].tags_positivas).toContain("abertura_com_autoridade");
+    expect(analises![0].modelo).toBe("gpt-4o");
+    expect(analises![0].prompt_versao).toBe("whatsapp-v3-estruturado");
   });
 
   it("denormaliza score e ultima_analise_em para conversas", async () => {
@@ -169,19 +185,21 @@ describe("analisarConversasPendentes", () => {
   });
 
   it("não classifica origem quando confidence < 0.8", async () => {
-    const { default: Anthropic } = await import("@anthropic-ai/sdk");
-    (Anthropic as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() => ({
-      messages: {
-        create: vi.fn().mockResolvedValue({
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({ ...MOCK_ANALISE, origem_confidence: 0.6 }),
-            },
-          ],
-          usage: { input_tokens: 500, output_tokens: 100 },
-          model: "claude-sonnet-4-6",
-        }),
+    const { default: OpenAI } = await import("openai");
+    (OpenAI as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() => ({
+      chat: {
+        completions: {
+          create: vi.fn().mockResolvedValue({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({ ...MOCK_ANALISE, origem_confidence: 0.6 }),
+                },
+              },
+            ],
+            usage: { prompt_tokens: 500, completion_tokens: 100 },
+          }),
+        },
       },
     }));
 
