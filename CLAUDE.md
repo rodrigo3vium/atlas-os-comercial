@@ -137,6 +137,9 @@ supabase/
 | `admin:create-user` falha com "table not found" | Script usa `.from("autorizados")` que cai em `public` | Já corrigido: usa `.schema("comercial").from("autorizados")` |
 | `get_dashboard` retorna erro `42803` | `avg()` aninhado dentro de `jsonb_agg()` não é permitido no PostgreSQL | Já corrigido em `20260516000001_melhorias.sql`: avg() movido para subquery |
 | Seed não roda via `supabase db seed` | Schema `comercial` não está no `search_path` padrão do CLI | Rodar o `seed.sql` manualmente no SQL Editor do Supabase |
+| Cron de análise retorna `erros: N` para todas as conversas/calls | Modelo retorna JSON embrulhado em ` ```json ` mesmo com instrução "sem markdown" — `JSON.parse` falha no backtick | Já corrigido (commit `ba6968c`): analisadores fazem strip de markdown fences antes do parse (`rawText.replace(/^\`\`\`(?:json)?\s*\n?/, "")`) |
+| `db:seed-demo` falha com timeout de conexão | `psql` tenta IPv6 (`2600:…`) que não é roteado em algumas redes/VPNs | Usar string do **pooler** em `DEMO_DATABASE_URL` (Session mode, `aws-0-sa-east-1.pooler.supabase.com:5432`) ou colar o seed no SQL Editor e rodar só `npm run demo:analises` |
+| Vercel continua servindo commit antigo após push na branch `demo` | "Promote to Production" anterior foi pontual — não altera o Production Branch permanentemente | Settings → Git → Production Branch = `demo`; se a opção não aparecer, ir em Deployments → encontrar o commit desejado → `...` → Promote to Production |
 
 ---
 
