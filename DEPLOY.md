@@ -6,10 +6,25 @@ Guia de deploy e operações para o ambiente de **demonstração comercial** e p
 
 ## Ambientes
 
-| Ambiente | Repo | Supabase | Vercel | URL |
+| Ambiente | Repo / Branch | Supabase | Vercel | URL |
 |---|---|---|---|---|
-| Demo | este repo, branch `main` | projeto `atlas-os-demo` | projeto `atlas-os-demo` | `demo-comercial.benitesalbuquerque.com.br` |
+| Demo | este repo, branch **`demo`** | projeto `atlas-os-demo` | projeto `atlas-os-comercial-demo` | `.vercel.app` (subdomínio próprio depois) |
 | Cliente XYZ | fork `comercial-os-clinica-xyz` | projeto próprio | projeto próprio | acordado no kickoff |
+
+### Estratégia de branch da demo
+
+A demo roda do branch **`demo`**, não do `main`. A única diferença de código entre
+os dois branches é o `vercel.json`:
+
+- **`main`** — os 7 crons reais (processar eventos, análises, rondas ao vivo).
+- **`demo`** — `{ "crons": [] }`. A demo navega **dados estáticos seedados**; não
+  entra WhatsApp/call real, então nenhum cron faz sentido. Zerar os crons também
+  mantém a demo dentro do limite do plano **Hobby** da Vercel (que não permite os
+  7 crons de produção).
+
+No projeto Vercel da demo, **Settings → Git → Production Branch = `demo`**. Ao
+sincronizar a demo com novidades do `main`, faça merge de `main` em `demo` e
+**resolva o `vercel.json` mantendo `{ "crons": [] }`**.
 
 ---
 
@@ -93,10 +108,17 @@ npm run admin:create-user
 
 ### 7. Deploy na Vercel
 
-1. Novo projeto Vercel → conectar este repo, branch `main`.
-2. Preencher **todas** as env vars (da tabela acima) **antes do primeiro build**.
-3. Configurar domínio customizado: `demo-comercial.benitesalbuquerque.com.br`.
-4. Verificar build local antes de qualquer push:
+1. Novo projeto Vercel → conectar este repo.
+2. **Settings → Git → Production Branch = `demo`** (mantém os crons fora — ver
+   "Estratégia de branch da demo" acima).
+3. Preencher **todas** as env vars (da tabela acima) **antes do primeiro build**.
+   Não subir `DEMO_DATABASE_URL` (uso local) nem secrets de Evolution/Zapier
+   (a demo não recebe webhook).
+4. Primeiro deploy gera a URL `.vercel.app`. Setar `NEXT_PUBLIC_APP_URL` com essa
+   URL e fazer **redeploy** (os redirects de auth dependem dela).
+5. (Opcional) Configurar domínio customizado:
+   `demo-comercial.benitesalbuquerque.com.br`.
+6. Verificar build local antes de qualquer push:
    ```bash
    npm run typecheck && npm run build
    ```
