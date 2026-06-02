@@ -1,37 +1,103 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/server";
-import { Progress } from "@/components/ui/progress";
 import { MatchActions } from "./match-actions";
+import { CopyScriptButton } from "./copy-script-button";
 import { cn } from "@/lib/utils";
+import {
+  ORDEM_BLOCOS,
+  NOMES_FECHAMENTO,
+  PESOS_FECHAMENTO,
+  ETAPA_LABELS,
+  tierFromScore,
+  notaCor,
+  flagLabel,
+  isStructuredResult,
+  type CallAnalysisResult,
+  type BlocoNota,
+} from "@/lib/analysis/call-rubric";
 
-const FASES_LABELS: Record<string, string> = {
-  preparacao: "Preparação",
-  abertura: "Abertura",
-  diagnostico: "Diagnóstico",
-  apresentacao_clinica: "Apres. Clínica",
-  apresentacao_investimento: "Apres. Investimento",
-  fechamento: "Fechamento",
-  objecoes: "Objeções",
-  sabotadores: "Sabotadores",
-};
-
-function classificacaoCor(cls: string | null) {
-  const mapa: Record<string, string> = {
-    excelente: "bg-status-success-soft text-status-success",
-    bom: "bg-teal-soft text-teal-soft-text",
-    regular: "bg-status-warning-soft text-status-warning",
-    insuficiente: "bg-status-danger-soft text-status-danger",
-  };
-  return cls
-    ? (mapa[cls] ?? "bg-surface-muted text-text-secondary")
-    : "bg-surface-muted text-text-secondary";
+function ScoreRing({ score, cssVar }: { score: number; cssVar: string }) {
+  const size = 132;
+  const stroke = 11;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const pct = Math.max(0, Math.min(100, score));
+  const offset = c * (1 - pct / 100);
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="var(--border)"
+          strokeWidth={stroke}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={cssVar}
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={offset}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-kpi-lg font-stat leading-none text-text-primary">{score}</span>
+        <span className="text-label text-text-muted">/100</span>
+      </div>
+    </div>
+  );
 }
 
-function faseScoreCor(score: number) {
-  if (score >= 80) return "text-status-success";
-  if (score >= 50) return "text-status-warning";
-  return "text-status-danger";
+function BlocoBar({ bloco }: { bloco: BlocoNota }) {
+  const nome = NOMES_FECHAMENTO[bloco.id];
+  const peso = PESOS_FECHAMENTO[bloco.id];
+  const cor = notaCor(bloco.nota_0_10);
+  return (
+    <details className="group rounded-md border border-border bg-surface-muted">
+      <summary className="cursor-pointer list-none px-3 py-2.5 hover:bg-surface-hover">
+        <div className="mb-1.5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[11px] text-text-tertiary">{bloco.id}</span>
+            <span className="text-caption text-text-primary">{nome}</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted">
+              Peso {peso}%
+            </span>
+          </div>
+          <span className={cn("text-body-strong tabular-nums", cor.text)}>
+            {bloco.nota_0_10}
+            <span className="text-text-muted">/10</span>
+          </span>
+        </div>
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface">
+          <div
+            className={cn("h-full rounded-full", cor.bar)}
+            style={{ width: `${bloco.nota_0_10 * 10}%` }}
+          />
+        </div>
+      </summary>
+      <div className="space-y-2 border-t border-border px-3 py-3">
+        <p className="text-caption leading-relaxed text-text-secondary">{bloco.analise}</p>
+        {bloco.citacoes?.map((cit, i) => (
+          <blockquote key={i} className="rounded-md border-l-2 border-teal bg-surface px-3 py-2">
+            <p className="text-caption italic text-text-primary">“{cit.quote}”</p>
+            {(cit.speaker || cit.ts) && (
+              <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted">
+                {[cit.speaker, cit.ts].filter(Boolean).join(" · ")}
+              </p>
+            )}
+          </blockquote>
+        ))}
+      </div>
+    </details>
+  );
 }
 
 export default async function CallDetalhe({ params }: { params: Promise<{ id: string }> }) {
@@ -57,12 +123,17 @@ export default async function CallDetalhe({ params }: { params: Promise<{ id: st
 
   const analise = analises?.[0] ?? null;
   const lead = Array.isArray(call.lead) ? call.lead[0] : call.lead;
-  const fases = (analise?.fases ?? {}) as Record<string, { score: number; observacao: string }>;
+  const resultado = isStructuredResult(analise?.fases)
+    ? (analise!.fases as unknown as CallAnalysisResult)
+    : null;
+
+  const tier = resultado ? tierFromScore(resultado.score_global) : null;
+  const blocosPorId = new Map((resultado?.blocos ?? []).map((b) => [b.id, b]));
 
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div>
           <Link href="/calls" className="text-caption font-medium text-teal hover:text-teal-hover">
             ← Calls
@@ -74,24 +145,141 @@ export default async function CallDetalhe({ params }: { params: Promise<{ id: st
               : "Duração desconhecida"}
           </p>
         </div>
-        {analise && (
-          <span
-            className={`text-caption rounded-full px-3 py-1 font-semibold capitalize ${classificacaoCor(analise.classificacao)}`}
-          >
-            {analise.classificacao}
-          </span>
+        {resultado && tier && (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <span className="text-label rounded-full bg-surface-muted px-3 py-1 font-mono uppercase tracking-[0.12em] text-text-secondary">
+              {ETAPA_LABELS[resultado.etapa] ?? resultado.etapa}
+            </span>
+            <span
+              className={cn("text-caption rounded-full px-3 py-1 font-semibold", tier.badgeClass)}
+            >
+              {tier.label}
+            </span>
+          </div>
         )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        {/* Fases + diagnóstico */}
+        {/* Coluna principal: análise */}
         <div className="space-y-4 lg:col-span-2">
-          {analise ? (
+          {resultado && tier ? (
             <>
-              {/* Performance por fase */}
+              {/* Hero: anel + leitura + flags */}
+              <div className="surface-sheen rounded-lg border border-border bg-surface p-4 shadow-sm">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <ScoreRing score={resultado.score_global} cssVar={tier.cssVar} />
+                  <div className="flex-1 space-y-3">
+                    <p className="text-body-strong leading-relaxed text-text-primary">
+                      {resultado.leitura}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {resultado.flags_positivas?.map((f) => (
+                        <span
+                          key={f}
+                          className="rounded-full bg-status-success-soft px-2 py-0.5 text-[11px] font-medium text-status-success"
+                        >
+                          {flagLabel(f)}
+                        </span>
+                      ))}
+                      {resultado.sinais_vermelhos?.map((f) => (
+                        <span
+                          key={f}
+                          className="rounded-full bg-status-danger-soft px-2 py-0.5 text-[11px] font-medium text-status-danger"
+                        >
+                          {flagLabel(f)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Performance por bloco */}
               <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
-                <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-h3 text-text-primary">Performance por fase</h2>
+                <h2 className="text-h3 mb-3 text-text-primary">Performance por bloco</h2>
+                <div className="space-y-2">
+                  {ORDEM_BLOCOS.map((bid) => {
+                    const bloco = blocosPorId.get(bid);
+                    if (!bloco) return null;
+                    return <BlocoBar key={bid} bloco={bloco} />;
+                  })}
+                  {typeof resultado.rapport_0_10 === "number" && (
+                    <div className="flex items-center justify-between rounded-md border border-dashed border-border bg-surface-muted px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-caption text-text-secondary">Crenças do closer</span>
+                        <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted">
+                          Bônus · fora do score
+                        </span>
+                      </div>
+                      <span
+                        className={cn(
+                          "text-body-strong tabular-nums",
+                          notaCor(resultado.rapport_0_10).text,
+                        )}
+                      >
+                        {resultado.rapport_0_10}
+                        <span className="text-text-muted">/10</span>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Sinais vermelhos */}
+              {resultado.sinais_vermelhos?.length > 0 && (
+                <div className="rounded-lg border border-status-danger bg-status-danger-soft p-4">
+                  <p className="text-label mb-2 text-status-danger">Sinais vermelhos</p>
+                  <ul className="space-y-1">
+                    {resultado.sinais_vermelhos.map((f) => (
+                      <li key={f} className="text-caption flex items-start gap-2 text-text-primary">
+                        <span className="text-status-danger">▸</span>
+                        {flagLabel(f)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Ação recomendada */}
+              {resultado.recomendacoes?.length > 0 && (
+                <div className="space-y-3">
+                  <h2 className="text-h3 text-text-primary">Ação recomendada</h2>
+                  {resultado.recomendacoes.map((rec, i) => (
+                    <div
+                      key={i}
+                      className="rounded-lg border border-border bg-surface p-4 shadow-sm"
+                    >
+                      <div className="mb-2 flex items-start justify-between gap-2">
+                        <p className="text-label text-teal">{rec.gatilho}</p>
+                        {rec.bloco_ref && (
+                          <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted">
+                            Bloco {rec.bloco_ref}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-caption mb-3 text-text-secondary">{rec.racional}</p>
+                      <div className="rounded-md border border-border bg-surface-muted p-3">
+                        <div className="mb-1.5 flex items-center justify-between">
+                          <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted">
+                            Script
+                          </span>
+                          <CopyScriptButton texto={rec.script} />
+                        </div>
+                        <p className="text-caption leading-relaxed text-text-primary">
+                          {rec.script}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : analise ? (
+            /* Fallback: análise em formato antigo (prosa) */
+            <>
+              <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-h3 text-text-primary">Análise</h2>
                   <div className="flex items-baseline gap-0.5">
                     <span className="text-kpi tabular-nums text-text-primary">
                       {analise.score_geral}
@@ -99,45 +287,20 @@ export default async function CallDetalhe({ params }: { params: Promise<{ id: st
                     <span className="text-caption text-text-muted">/100</span>
                   </div>
                 </div>
-                <div className="space-y-3">
-                  {Object.entries(FASES_LABELS).map(([key, label]) => {
-                    const fase = fases[key];
-                    if (!fase) return null;
-                    return (
-                      <div key={key}>
-                        <div className="mb-1 flex items-center justify-between">
-                          <span className="text-caption text-text-tertiary">{label}</span>
-                          <span
-                            className={cn("text-caption font-medium", faseScoreCor(fase.score))}
-                          >
-                            {fase.score}
-                          </span>
-                        </div>
-                        <Progress value={fase.score} className="h-1.5" />
-                        {fase.observacao && (
-                          <p className="mt-0.5 text-[11px] text-text-muted">{fase.observacao}</p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Diagnóstico + ação */}
-              <div className="grid gap-3 sm:grid-cols-2">
                 {analise.diagnostico && (
-                  <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
-                    <p className="text-label mb-1.5 text-text-tertiary">Diagnóstico</p>
-                    <p className="text-sm text-text-primary">{analise.diagnostico}</p>
-                  </div>
-                )}
-                {analise.acao_recomendada && (
-                  <div className="rounded-lg border border-border bg-teal-soft p-4 shadow-sm">
-                    <p className="text-label mb-1.5 text-teal">Ação recomendada</p>
-                    <p className="text-sm text-teal-soft-text">{analise.acao_recomendada}</p>
-                  </div>
+                  <p className="whitespace-pre-wrap text-sm text-text-primary">
+                    {analise.diagnostico}
+                  </p>
                 )}
               </div>
+              {analise.acao_recomendada && (
+                <div className="rounded-lg border border-border bg-teal-soft p-4 shadow-sm">
+                  <p className="text-label mb-1.5 text-teal">Ação recomendada</p>
+                  <p className="whitespace-pre-wrap text-sm text-teal-soft-text">
+                    {analise.acao_recomendada}
+                  </p>
+                </div>
+              )}
             </>
           ) : (
             <div className="rounded-lg border border-border bg-surface p-8 text-center shadow-sm">

@@ -1,6 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PROMPT_VERSION, SYSTEM_PROMPT_ANALISE } from "@/lib/prompts/analyze-call";
+import {
+  RUBRIC_VERSION,
+  computeScoreGlobal,
+  tierFromScore,
+  type CallAnalysisModel,
+  type CallAnalysisResult,
+} from "@/lib/analysis/call-rubric";
+import type { Json } from "@/lib/supabase/types";
 import { matchCallLead } from "@/lib/modules/matcher-call-lead";
 import { dispararAlertaSeNecessario } from "@/lib/modules/alerta-imediato";
 import { log } from "@/lib/log";
@@ -13,13 +21,12 @@ export type ResultadoAnaliseCall = {
   erros: number;
 };
 
-type AnaliseCallIA = {
-  classificacao: "excelente" | "bom" | "regular" | "insuficiente";
-  score_geral: number;
-  fases: Record<string, { score: number; observacao: string }>;
-  diagnostico: string | null;
-  acao_recomendada: string | null;
-};
+// Serializa as recomendações estruturadas em texto curto para preencher a coluna
+// legada `acao_recomendada` (consumida por dashboard/rondas/listas).
+function recomendacoesParaTexto(recomendacoes: CallAnalysisModel["recomendacoes"]): string | null {
+  if (!recomendacoes?.length) return null;
+  return recomendacoes.map((r, i) => `${i + 1}) [${r.gatilho}] ${r.script}`).join("\n");
+}
 
 let _anthropic: Anthropic | null = null;
 
@@ -101,18 +108,37 @@ async function analisarCall(
     .replace(/^```(?:json)?\s*\n?/, "")
     .replace(/\n?```\s*$/, "")
     .trim();
-  const analise = JSON.parse(rawText) as AnaliseCallIA;
+  const analise = JSON.parse(rawText) as CallAnalysisModel;
+
+  // Score global é calculado AQUI (ponderado), nunca pelo modelo.
+  const scoreGlobal = computeScoreGlobal(analise.blocos ?? []);
+  const { classificacao } = tierFromScore(scoreGlobal);
+
+  if (analise.etapa && analise.etapa !== "fechamento") {
+    log.warn("analisador_calls.etapa_inesperada", {
+      callId,
+      etapa: analise.etapa,
+      nota: "usando régua de fechamento como fallback",
+    });
+  }
+
+  const resultado: CallAnalysisResult = {
+    ...analise,
+    etapa: analise.etapa ?? "fechamento",
+    rubric_version: RUBRIC_VERSION,
+    score_global: scoreGlobal,
+  };
 
   await supabase
     .schema("comercial")
     .from("analises_calls")
     .insert({
       call_id: callId,
-      classificacao: analise.classificacao,
-      score_geral: analise.score_geral,
-      fases: analise.fases ?? {},
-      diagnostico: analise.diagnostico ?? null,
-      acao_recomendada: analise.acao_recomendada ?? null,
+      classificacao,
+      score_geral: scoreGlobal,
+      fases: resultado as unknown as Json,
+      diagnostico: analise.leitura ?? null,
+      acao_recomendada: recomendacoesParaTexto(analise.recomendacoes),
       modelo: MODELO,
       prompt_versao: PROMPT_VERSION,
       tokens_entrada: response.usage?.input_tokens ?? null,
@@ -147,7 +173,7 @@ async function analisarCall(
         call.lead_id as string,
         lead.nome,
         lead.telefone,
-        analise.score_geral,
+        scoreGlobal,
         supabase,
       );
     }
