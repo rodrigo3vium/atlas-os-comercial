@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PROMPT_VERSION, SYSTEM_PROMPT_ANALISE } from "@/lib/prompts/analyze-call";
 import {
@@ -13,7 +13,7 @@ import { matchCallLead } from "@/lib/modules/matcher-call-lead";
 import { dispararAlertaSeNecessario } from "@/lib/modules/alerta-imediato";
 import { log } from "@/lib/log";
 
-const MODELO = "claude-sonnet-4-6";
+const MODELO = "gpt-4o";
 const BATCH_SIZE = 10;
 
 export type ResultadoAnaliseCall = {
@@ -28,11 +28,11 @@ function recomendacoesParaTexto(recomendacoes: CallAnalysisModel["recomendacoes"
   return recomendacoes.map((r, i) => `${i + 1}) [${r.gatilho}] ${r.script}`).join("\n");
 }
 
-let _anthropic: Anthropic | null = null;
+let _openai: OpenAI | null = null;
 
-function getAnthropicClient() {
-  if (!_anthropic) _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  return _anthropic;
+function getOpenAIClient() {
+  if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return _openai;
 }
 
 export async function analisarCallsPendentes(
@@ -75,39 +75,23 @@ async function analisarCall(
   titulo: string | null,
   supabase: SupabaseClient,
 ) {
-  const client = getAnthropicClient();
+  const client = getOpenAIClient();
 
   const contexto = titulo
     ? `Título da call: ${titulo}\n\nTranscrição:\n${transcricao}`
     : transcricao;
 
-  const response = await client.messages.create({
+  const response = await client.chat.completions.create({
     model: MODELO,
     max_tokens: 4096,
-    system: [
-      {
-        type: "text",
-        text: SYSTEM_PROMPT_ANALISE,
-        cache_control: { type: "ephemeral" },
-      },
-    ],
+    response_format: { type: "json_object" },
     messages: [
-      {
-        role: "user",
-        content: `Avalie esta call de fechamento:\n\n${contexto}`,
-      },
+      { role: "system", content: SYSTEM_PROMPT_ANALISE },
+      { role: "user", content: `Avalie esta call de fechamento:\n\n${contexto}` },
     ],
   });
 
-  const textBlock = response.content.find((c) => c.type === "text");
-  if (!textBlock || textBlock.type !== "text") {
-    throw new Error("Resposta Anthropic sem conteúdo de texto");
-  }
-
-  const rawText = textBlock.text
-    .replace(/^```(?:json)?\s*\n?/, "")
-    .replace(/\n?```\s*$/, "")
-    .trim();
+  const rawText = response.choices[0]?.message?.content ?? "";
   const analise = JSON.parse(rawText) as CallAnalysisModel;
 
   // Score global é calculado AQUI (ponderado), nunca pelo modelo.
@@ -141,8 +125,8 @@ async function analisarCall(
       acao_recomendada: recomendacoesParaTexto(analise.recomendacoes),
       modelo: MODELO,
       prompt_versao: PROMPT_VERSION,
-      tokens_entrada: response.usage?.input_tokens ?? null,
-      tokens_saida: response.usage?.output_tokens ?? null,
+      tokens_entrada: response.usage?.prompt_tokens ?? null,
+      tokens_saida: response.usage?.completion_tokens ?? null,
     })
     .throwOnError();
 
