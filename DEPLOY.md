@@ -73,29 +73,50 @@ Ou cole os arquivos no SQL Editor do Supabase (ordem obrigatória):
 1. `supabase/migrations/20260516000000_initial_schema.sql`
 2. `supabase/migrations/20260516000001_melhorias.sql`
 
-### 4. Rodar seed de demonstração
+### 4. Rodar seed de demonstração + gerar análises
+
+O seed carrega só os **dados brutos** (leads, conversas, calls). As análises
+(`analises_whatsapp`, `analises_calls`) ficam vazias — em produção quem as gera é
+o cron, que na demo fica zerado. Por isso a demo tem um comando que faz as duas
+etapas de uma vez:
 
 ```bash
 # Preencha DEMO_DATABASE_URL no .env.demo primeiro
 export $(grep -v '^#' .env.demo | xargs)
-npm run db:seed-demo
+npm run demo:rebuild        # = db:seed-demo (psql) + demo:analises (motor real)
 ```
 
-Ou cole `supabase/seeds/_demo.sql` diretamente no SQL Editor.
+- `db:seed-demo` recarrega o seed bruto via `psql` (precisa de `DEMO_DATABASE_URL`).
+- `demo:analises` roda o **mesmo motor de análise da produção** uma vez, via HTTPS
+  (precisa de `ANTHROPIC_API_KEY` real + `SUPABASE_SERVICE_ROLE_KEY`), populando
+  score, diagnóstico, fases e tags sobre os dados seedados.
 
-**O seed é idempotente** — pode rodar N vezes. Sempre converge ao mesmo estado (24 leads, 14 conversas, 16 calls, 2 rondas).
+Ambos são **idempotentes** (o seed faz `TRUNCATE ... RESTART IDENTITY CASCADE`),
+então `demo:rebuild` sempre converge ao mesmo estado — ideal para resetar antes de
+uma gravação.
+
+> **Atenção à connection string do `psql`:** muitas redes não roteiam a conexão
+> **direta** do Supabase (`db.<ref>.supabase.co:5432`, IPv6) e o `psql` dá timeout.
+> Nesse caso, use a string do **pooler** (Session mode, `aws-0-<region>.pooler.supabase.com:5432`)
+> em `DEMO_DATABASE_URL`, ou cole `supabase/seeds/_demo.sql` no SQL Editor e rode só
+> `npm run demo:analises` (a análise usa HTTPS e não depende do `psql`).
 
 ### 5. Validar contagens
 
 No SQL Editor do projeto demo:
 ```sql
 SELECT
-  (SELECT COUNT(*) FROM comercial.leads)           AS leads,
-  (SELECT COUNT(*) FROM comercial.conversas)        AS conversas,
-  (SELECT COUNT(*) FROM comercial.calls)            AS calls,
-  (SELECT COUNT(*) FROM comercial.analises_calls)   AS analises_calls,
-  (SELECT COUNT(*) FROM comercial.rondas)           AS rondas;
--- Esperado: leads=24, conversas=14, calls=16, analises_calls=13, rondas=2
+  (SELECT COUNT(*) FROM comercial.leads)              AS leads,
+  (SELECT COUNT(*) FROM comercial.conversas)          AS conversas,
+  (SELECT COUNT(*) FROM comercial.mensagens)          AS mensagens,
+  (SELECT COUNT(*) FROM comercial.calls)              AS calls,
+  (SELECT COUNT(*) FROM comercial.analises_whatsapp)  AS analises_whatsapp,
+  (SELECT COUNT(*) FROM comercial.analises_calls)     AS analises_calls,
+  (SELECT COUNT(*) FROM comercial.rondas)             AS rondas;
+-- Pós-seed (db:seed-demo):  leads=12, conversas=9, mensagens=145, calls=7,
+--                           analises_whatsapp=0, analises_calls=0, rondas=0
+-- Pós-análise (demo:analises): analises_whatsapp=9, analises_calls=7
+--                           (rondas seguem 0 — geração de ronda fora do rebuild)
 ```
 
 ### 6. Criar usuário admin
@@ -131,10 +152,10 @@ Para restaurar os dados fictícios ao estado original (antes de uma gravação d
 
 ```bash
 export $(grep -v '^#' .env.demo | xargs)
-npm run db:seed-demo
+npm run demo:rebuild     # reseta os dados brutos e regenera as análises reais
 ```
 
-O TRUNCATE no topo do seed limpa apenas tabelas de dados — preserva `configuracoes` e `autorizados` (usuários). Após o seed, faça login e confirme que o dashboard mostra KPIs.
+O TRUNCATE no topo do seed limpa apenas tabelas de dados — preserva `configuracoes` e `autorizados` (usuários). Após o rebuild, faça login e confirme que o dashboard mostra KPIs e que conversas/calls já têm score e diagnóstico. (Se o `psql` não conectar nesta rede, veja a nota do passo 4 sobre o pooler / rodar só `npm run demo:analises`.)
 
 ---
 
