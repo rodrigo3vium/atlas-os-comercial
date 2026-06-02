@@ -76,7 +76,7 @@ async function analisarCall(
 
   const response = await client.messages.create({
     model: MODELO,
-    max_tokens: 2048,
+    max_tokens: 4096,
     system: [
       {
         type: "text",
@@ -97,7 +97,11 @@ async function analisarCall(
     throw new Error("Resposta Anthropic sem conteúdo de texto");
   }
 
-  const analise = JSON.parse(textBlock.text) as AnaliseCallIA;
+  const rawText = textBlock.text
+    .replace(/^```(?:json)?\s*\n?/, "")
+    .replace(/\n?```\s*$/, "")
+    .trim();
+  const analise = JSON.parse(rawText) as AnaliseCallIA;
 
   await supabase
     .schema("comercial")
