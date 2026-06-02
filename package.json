@@ -12,7 +12,8 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "prepare": "husky",
-    "admin:create-user": "tsx scripts/create-user.ts"
+    "admin:create-user": "tsx scripts/create-user.ts",
+    "db:seed-demo": "psql \"$DEMO_DATABASE_URL\" -f supabase/seeds/_demo.sql"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",
