@@ -4,10 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 function scoreColor(score: number | null) {
-  if (score == null) return "text-slate-500";
-  if (score >= 70) return "text-emerald-400";
-  if (score >= 40) return "text-yellow-400";
-  return "text-red-400";
+  if (score == null) return "text-text-muted";
+  if (score >= 70) return "text-status-success";
+  if (score >= 40) return "text-status-warning";
+  return "text-status-danger";
 }
 
 function formatarData(iso: string | null) {
@@ -48,22 +48,33 @@ export default async function WhatsappPage({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-100">Conversas WhatsApp</h1>
-          <p className="text-sm text-slate-400">{conversas?.length ?? 0} conversas</p>
+          <h1 className="text-h1 text-text-primary">Conversas WhatsApp</h1>
+          <p className="mt-1 text-sm text-text-secondary">{conversas?.length ?? 0} conversas</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-1.5">
+          <Link
+            href="/whatsapp"
+            className={cn(
+              "text-caption rounded-md px-3 py-1.5 font-medium transition-colors",
+              !status
+                ? "bg-teal-soft text-teal-soft-text"
+                : "text-text-tertiary hover:bg-surface-muted hover:text-text-primary",
+            )}
+          >
+            Todas
+          </Link>
           {Object.entries(statusLabels).map(([s, label]) => (
             <Link
               key={s}
               href={s === status ? "/whatsapp" : `/whatsapp?status=${s}`}
               className={cn(
-                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                "text-caption rounded-md px-3 py-1.5 font-medium transition-colors",
                 s === status
-                  ? "bg-cyan-500/20 text-cyan-300"
-                  : "text-slate-400 hover:bg-slate-700 hover:text-slate-200",
+                  ? "bg-teal-soft text-teal-soft-text"
+                  : "text-text-tertiary hover:bg-surface-muted hover:text-text-primary",
               )}
             >
               {label}
@@ -72,23 +83,21 @@ export default async function WhatsappPage({
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-700">
+      <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-700 bg-slate-800/60">
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">Lead</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">Status</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">Score</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">
-                Última mensagem
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">Analisada</th>
+            <tr className="border-b border-border bg-surface-muted">
+              <th className="text-label px-4 py-3 text-left text-text-tertiary">Lead</th>
+              <th className="text-label px-4 py-3 text-left text-text-tertiary">Status</th>
+              <th className="text-label px-4 py-3 text-left text-text-tertiary">Score</th>
+              <th className="text-label px-4 py-3 text-left text-text-tertiary">Última mensagem</th>
+              <th className="text-label px-4 py-3 text-left text-text-tertiary">Analisada</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-700/60">
+          <tbody className="divide-y divide-border">
             {(conversas ?? []).length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-500">
+                <td colSpan={5} className="text-caption px-4 py-10 text-center text-text-muted">
                   Nenhuma conversa encontrada
                 </td>
               </tr>
@@ -96,15 +105,17 @@ export default async function WhatsappPage({
               (conversas ?? []).map((c) => {
                 const lead = Array.isArray(c.lead) ? c.lead[0] : c.lead;
                 return (
-                  <tr key={c.id} className="hover:bg-slate-800/40">
+                  <tr key={c.id} className="hover:bg-surface-muted">
                     <td className="px-4 py-3">
                       <Link
                         href={`/whatsapp/${c.id}`}
-                        className="font-medium text-slate-200 hover:text-cyan-300"
+                        className="font-medium text-text-primary hover:text-teal"
                       >
                         {lead?.nome ?? lead?.telefone ?? "—"}
                       </Link>
-                      {lead?.telefone && <p className="text-xs text-slate-500">{lead.telefone}</p>}
+                      {lead?.telefone && (
+                        <p className="text-caption text-text-muted">{lead.telefone}</p>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant="secondary" className="capitalize">
@@ -121,10 +132,10 @@ export default async function WhatsappPage({
                         {c.ultimo_score ?? "—"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-400">
+                    <td className="text-caption px-4 py-3 text-text-tertiary">
                       {formatarData(c.ultima_mensagem_em)}
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-400">
+                    <td className="text-caption px-4 py-3 text-text-tertiary">
                       {formatarData(c.ultima_analise_em)}
                     </td>
                   </tr>

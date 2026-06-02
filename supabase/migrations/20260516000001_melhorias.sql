@@ -115,24 +115,23 @@ BEGIN
     ),
 
     'serie_temporal', (
-      SELECT COALESCE(jsonb_agg(
-        jsonb_build_object(
-          'semana', to_char(serie.semana, 'YYYY-MM-DD'),
-          'score_whatsapp', round(avg(aw.score)::numeric, 1),
-          'score_calls', round(avg(ac.score_geral)::numeric, 1)
-        )
-        ORDER BY serie.semana
-      ), '[]'::jsonb)
-      FROM generate_series(
-        date_trunc('week', now()) - '11 weeks'::interval,
-        date_trunc('week', now()),
-        '1 week'::interval
-      ) AS serie(semana)
-      LEFT JOIN comercial.analises_whatsapp aw
-        ON date_trunc('week', aw.created_at) = serie.semana
-      LEFT JOIN comercial.analises_calls ac
-        ON date_trunc('week', ac.created_at) = serie.semana
-      GROUP BY serie.semana
+      SELECT COALESCE(jsonb_agg(row_to_json(t)::jsonb ORDER BY t.semana), '[]'::jsonb)
+      FROM (
+        SELECT
+          to_char(serie.semana, 'YYYY-MM-DD') AS semana,
+          round(avg(aw.score)::numeric, 1)       AS score_whatsapp,
+          round(avg(ac.score_geral)::numeric, 1)  AS score_calls
+        FROM generate_series(
+          date_trunc('week', now()) - '11 weeks'::interval,
+          date_trunc('week', now()),
+          '1 week'::interval
+        ) AS serie(semana)
+        LEFT JOIN comercial.analises_whatsapp aw
+          ON date_trunc('week', aw.created_at) = serie.semana
+        LEFT JOIN comercial.analises_calls ac
+          ON date_trunc('week', ac.created_at) = serie.semana
+        GROUP BY serie.semana
+      ) t
     ),
 
     'conversas_recentes', (

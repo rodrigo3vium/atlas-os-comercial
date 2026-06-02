@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/server";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { MatchActions } from "./match-actions";
+import { cn } from "@/lib/utils";
 
 const FASES_LABELS: Record<string, string> = {
   preparacao: "Preparação",
@@ -18,33 +18,42 @@ const FASES_LABELS: Record<string, string> = {
 
 function classificacaoCor(cls: string | null) {
   const mapa: Record<string, string> = {
-    excelente: "bg-emerald-500/20 text-emerald-300",
-    bom: "bg-cyan-500/20 text-cyan-300",
-    regular: "bg-yellow-500/20 text-yellow-300",
-    insuficiente: "bg-red-500/20 text-red-300",
+    excelente: "bg-status-success-soft text-status-success",
+    bom: "bg-teal-soft text-teal-soft-text",
+    regular: "bg-status-warning-soft text-status-warning",
+    insuficiente: "bg-status-danger-soft text-status-danger",
   };
-  return cls ? (mapa[cls] ?? "bg-slate-500/20 text-slate-300") : "bg-slate-500/20 text-slate-300";
+  return cls
+    ? (mapa[cls] ?? "bg-surface-muted text-text-secondary")
+    : "bg-surface-muted text-text-secondary";
+}
+
+function faseScoreCor(score: number) {
+  if (score >= 80) return "text-status-success";
+  if (score >= 50) return "text-status-warning";
+  return "text-status-danger";
 }
 
 export default async function CallDetalhe({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createServiceClient();
 
-  const { data: call } = await supabase
-    .schema("comercial")
-    .from("calls")
-    .select("*, lead:leads(id, nome, telefone, status), match_sugestoes")
-    .eq("id", id)
-    .single();
+  const [{ data: call }, { data: analises }] = await Promise.all([
+    supabase
+      .schema("comercial")
+      .from("calls")
+      .select("*, lead:leads(id, nome, telefone, status), match_sugestoes")
+      .eq("id", id)
+      .single(),
+    supabase
+      .schema("comercial")
+      .from("analises_calls")
+      .select("*")
+      .eq("call_id", id)
+      .order("created_at", { ascending: false }),
+  ]);
 
   if (!call) notFound();
-
-  const { data: analises } = await supabase
-    .schema("comercial")
-    .from("analises_calls")
-    .select("*")
-    .eq("call_id", id)
-    .order("created_at", { ascending: false });
 
   const analise = analises?.[0] ?? null;
   const lead = Array.isArray(call.lead) ? call.lead[0] : call.lead;
@@ -55,13 +64,11 @@ export default async function CallDetalhe({ params }: { params: Promise<{ id: st
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <Link href="/calls" className="text-sm text-slate-400 hover:text-slate-200">
+          <Link href="/calls" className="text-caption font-medium text-teal hover:text-teal-hover">
             ← Calls
           </Link>
-          <h1 className="mt-1 text-xl font-semibold text-slate-100">
-            {call.titulo ?? "Call sem título"}
-          </h1>
-          <p className="text-sm text-slate-400">
+          <h1 className="text-h1 mt-1 text-text-primary">{call.titulo ?? "Call sem título"}</h1>
+          <p className="text-sm text-text-secondary">
             {call.duracao_segundos
               ? `${Math.floor(call.duracao_segundos / 60)} min`
               : "Duração desconhecida"}
@@ -69,7 +76,7 @@ export default async function CallDetalhe({ params }: { params: Promise<{ id: st
         </div>
         {analise && (
           <span
-            className={`rounded-full px-3 py-1 text-sm font-semibold capitalize ${classificacaoCor(analise.classificacao)}`}
+            className={`text-caption rounded-full px-3 py-1 font-semibold capitalize ${classificacaoCor(analise.classificacao)}`}
           >
             {analise.classificacao}
           </span>
@@ -82,13 +89,15 @@ export default async function CallDetalhe({ params }: { params: Promise<{ id: st
           {analise ? (
             <>
               {/* Performance por fase */}
-              <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4">
+              <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
                 <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-sm font-medium text-slate-300">Performance por fase</h2>
-                  <span className="text-2xl font-bold tabular-nums text-slate-100">
-                    {analise.score_geral}
-                    <span className="text-sm font-normal text-slate-500">/100</span>
-                  </span>
+                  <h2 className="text-h3 text-text-primary">Performance por fase</h2>
+                  <div className="flex items-baseline gap-0.5">
+                    <span className="text-kpi tabular-nums text-text-primary">
+                      {analise.score_geral}
+                    </span>
+                    <span className="text-caption text-text-muted">/100</span>
+                  </div>
                 </div>
                 <div className="space-y-3">
                   {Object.entries(FASES_LABELS).map(([key, label]) => {
@@ -96,23 +105,17 @@ export default async function CallDetalhe({ params }: { params: Promise<{ id: st
                     if (!fase) return null;
                     return (
                       <div key={key}>
-                        <div className="mb-1 flex items-center justify-between text-xs">
-                          <span className="text-slate-400">{label}</span>
+                        <div className="mb-1 flex items-center justify-between">
+                          <span className="text-caption text-text-tertiary">{label}</span>
                           <span
-                            className={
-                              fase.score >= 70
-                                ? "text-emerald-400"
-                                : fase.score >= 40
-                                  ? "text-yellow-400"
-                                  : "text-red-400"
-                            }
+                            className={cn("text-caption font-medium", faseScoreCor(fase.score))}
                           >
                             {fase.score}
                           </span>
                         </div>
                         <Progress value={fase.score} className="h-1.5" />
                         {fase.observacao && (
-                          <p className="mt-0.5 text-[11px] text-slate-500">{fase.observacao}</p>
+                          <p className="mt-0.5 text-[11px] text-text-muted">{fase.observacao}</p>
                         )}
                       </div>
                     );
@@ -123,37 +126,39 @@ export default async function CallDetalhe({ params }: { params: Promise<{ id: st
               {/* Diagnóstico + ação */}
               <div className="grid gap-3 sm:grid-cols-2">
                 {analise.diagnostico && (
-                  <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-                    <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                      Diagnóstico
-                    </p>
-                    <p className="text-sm text-slate-300">{analise.diagnostico}</p>
+                  <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
+                    <p className="text-label mb-1.5 text-text-tertiary">Diagnóstico</p>
+                    <p className="text-sm text-text-primary">{analise.diagnostico}</p>
                   </div>
                 )}
                 {analise.acao_recomendada && (
-                  <div className="rounded-xl border border-cyan-900/50 bg-cyan-950/20 p-4">
-                    <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-cyan-600">
-                      Ação recomendada
-                    </p>
-                    <p className="text-sm text-slate-300">{analise.acao_recomendada}</p>
+                  <div className="rounded-lg border border-border bg-teal-soft p-4 shadow-sm">
+                    <p className="text-label mb-1.5 text-teal">Ação recomendada</p>
+                    <p className="text-sm text-teal-soft-text">{analise.acao_recomendada}</p>
                   </div>
                 )}
               </div>
             </>
           ) : (
-            <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-8 text-center">
-              <p className="text-sm text-slate-500">Análise pendente</p>
+            <div className="rounded-lg border border-border bg-surface p-8 text-center shadow-sm">
+              <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-surface-muted">
+                <span className="text-lg text-text-muted">○</span>
+              </div>
+              <p className="text-body-strong text-text-primary">Análise pendente</p>
+              <p className="text-caption mt-1 text-text-muted">
+                A análise será gerada automaticamente.
+              </p>
             </div>
           )}
 
           {/* Transcrição */}
           {call.transcricao && (
-            <details className="rounded-xl border border-slate-700 bg-slate-800/40">
-              <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-300 hover:text-slate-200">
+            <details className="rounded-lg border border-border bg-surface shadow-sm">
+              <summary className="text-body-strong cursor-pointer px-4 py-3 text-text-primary hover:bg-surface-muted">
                 Transcrição completa
               </summary>
-              <div className="border-t border-slate-700 px-4 py-3">
-                <p className="whitespace-pre-wrap text-xs leading-relaxed text-slate-400">
+              <div className="border-t border-border px-4 py-3">
+                <p className="text-caption whitespace-pre-wrap leading-relaxed text-text-secondary">
                   {call.transcricao}
                 </p>
               </div>
@@ -164,19 +169,21 @@ export default async function CallDetalhe({ params }: { params: Promise<{ id: st
         {/* Sidebar: match + lead */}
         <div className="space-y-4">
           {/* Match */}
-          <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-            <h2 className="mb-3 text-sm font-medium text-slate-300">Match</h2>
-            <div className="mb-3 flex items-center gap-2">
-              <Badge variant="secondary">{call.match_status}</Badge>
+          <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
+            <h2 className="text-h3 mb-3 text-text-primary">Match</h2>
+            <div className="mb-3">
+              <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[11px] font-medium capitalize text-text-secondary">
+                {call.match_status}
+              </span>
             </div>
 
             {lead ? (
               <div className="mb-3">
-                <p className="text-sm font-medium text-slate-200">{lead.nome}</p>
-                <p className="text-xs text-slate-500">{lead.telefone}</p>
+                <p className="text-body-strong text-text-primary">{lead.nome}</p>
+                <p className="text-caption text-text-muted">{lead.telefone}</p>
                 <Link
                   href={`/leads/${lead.id}`}
-                  className="mt-1 block text-xs text-cyan-400 hover:underline"
+                  className="text-caption mt-1 block font-medium text-teal hover:text-teal-hover"
                 >
                   Ver lead →
                 </Link>
@@ -200,26 +207,28 @@ export default async function CallDetalhe({ params }: { params: Promise<{ id: st
             />
           </div>
 
-          {/* Info call */}
-          <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-            <h2 className="mb-2 text-sm font-medium text-slate-300">Detalhes</h2>
-            <dl className="space-y-1.5 text-xs">
+          {/* Detalhes da call */}
+          <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
+            <h2 className="text-h3 mb-3 text-text-primary">Detalhes</h2>
+            <dl className="space-y-2">
               <div className="flex justify-between">
-                <dt className="text-slate-500">Origem transcrição</dt>
-                <dd className="text-slate-300">{call.transcricao_origem ?? "—"}</dd>
+                <dt className="text-label text-text-tertiary">Origem transcrição</dt>
+                <dd className="text-body-strong text-text-primary">
+                  {call.transcricao_origem ?? "—"}
+                </dd>
               </div>
               {call.realizada_em && (
                 <div className="flex justify-between">
-                  <dt className="text-slate-500">Realizada em</dt>
-                  <dd className="text-slate-300">
+                  <dt className="text-label text-text-tertiary">Realizada em</dt>
+                  <dd className="text-body-strong text-text-primary">
                     {new Intl.DateTimeFormat("pt-BR").format(new Date(call.realizada_em))}
                   </dd>
                 </div>
               )}
               {call.telefone_extraido && (
                 <div className="flex justify-between">
-                  <dt className="text-slate-500">Telefone extraído</dt>
-                  <dd className="text-slate-300">{call.telefone_extraido}</dd>
+                  <dt className="text-label text-text-tertiary">Telefone extraído</dt>
+                  <dd className="text-body-strong text-text-primary">{call.telefone_extraido}</dd>
                 </div>
               )}
             </dl>

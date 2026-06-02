@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -9,28 +9,29 @@ type Props = {
   destaque?: boolean;
 };
 
-export function KpiCard({ titulo, valor, delta, sufixo, destaque }: Props) {
-  const valorFormatado = valor == null ? "—" : `${valor}${sufixo ?? ""}`;
+export function KpiCard({ titulo, valor, delta, sufixo }: Props) {
+  const isEmpty = valor == null;
+  const valorFormatado = isEmpty ? "—" : `${valor}${sufixo ?? ""}`;
 
   return (
-    <Card className={cn(destaque && "border-cyan-500/40 bg-cyan-950/20")}>
-      <CardHeader className="pb-1">
-        <CardTitle className="text-sm font-medium text-slate-400">{titulo}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-3xl font-bold tabular-nums text-slate-100">{valorFormatado}</p>
+    <Card className="flex flex-col gap-2 p-6">
+      <span className="text-label text-text-tertiary">{titulo}</span>
+      <div className="flex items-baseline gap-2">
+        <span className={cn("text-kpi-lg text-text-primary", isEmpty && "text-text-muted")}>
+          {valorFormatado}
+        </span>
         {delta != null && (
-          <p
+          <span
             className={cn(
-              "mt-1 text-xs font-medium",
-              delta >= 0 ? "text-emerald-400" : "text-red-400",
+              "text-caption font-medium",
+              delta >= 0 ? "text-status-success" : "text-status-danger",
             )}
           >
-            {delta >= 0 ? "+" : ""}
-            {delta} vs período anterior
-          </p>
+            {delta >= 0 ? "↑" : "↓"} {Math.abs(delta)}%
+          </span>
         )}
-      </CardContent>
+      </div>
+      {delta != null && <span className="text-caption text-text-muted">vs período anterior</span>}
     </Card>
   );
 }

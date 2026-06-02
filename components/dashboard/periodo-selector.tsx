@@ -1,7 +1,7 @@
 "use client";
 
+import { useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const PERIODOS = [
@@ -13,31 +13,38 @@ const PERIODOS = [
 export function PeriodoSelector() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [pending, startTransition] = useTransition();
   const atual = searchParams.get("dias") ?? "7";
 
   function selecionar(dias: string) {
+    if (dias === atual) return;
     const params = new URLSearchParams(searchParams.toString());
     params.set("dias", dias);
-    router.push(`/dashboard?${params.toString()}`);
+    startTransition(() => router.push(`/dashboard?${params.toString()}`));
   }
 
   return (
-    <div className="flex gap-1 rounded-lg border border-slate-700 bg-slate-800/60 p-1">
+    <div
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border border-border bg-surface-muted p-1 transition-opacity",
+        pending && "opacity-60",
+      )}
+      aria-busy={pending}
+    >
       {PERIODOS.map((p) => (
-        <Button
+        <button
           key={p.value}
-          variant="ghost"
-          size="sm"
           onClick={() => selecionar(p.value)}
+          disabled={pending}
           className={cn(
-            "h-7 px-3 text-xs font-medium",
+            "text-caption rounded-sm px-3 py-1.5 font-medium transition-colors disabled:cursor-wait",
             atual === p.value
-              ? "bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30"
-              : "text-slate-400 hover:text-slate-200",
+              ? "bg-surface text-text-primary shadow-sm"
+              : "text-text-tertiary hover:text-text-primary",
           )}
         >
           {p.label}
-        </Button>
+        </button>
       ))}
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,45 +41,47 @@ type Props = {
 export function LeadActions({ leadId, statusAtual, origemAtual }: Props) {
   const [novoStatus, setNovoStatus] = useState(statusAtual);
   const [novaOrigem, setNovaOrigem] = useState(origemAtual ?? "");
-  const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [pending, startTransition] = useTransition();
   const router = useRouter();
+  const loading = fetching || pending;
 
   async function salvarStatus() {
     if (novoStatus === statusAtual) return;
-    setLoading(true);
+    setFetching(true);
     try {
       await fetch(`/api/leads/${leadId}/status`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: novoStatus }),
       });
-      router.refresh();
     } finally {
-      setLoading(false);
+      setFetching(false);
     }
+    startTransition(() => router.refresh());
   }
 
   async function salvarOrigem() {
     if (!novaOrigem || novaOrigem === origemAtual) return;
-    setLoading(true);
+    setFetching(true);
     try {
       await fetch(`/api/leads/${leadId}/classificar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ origem: novaOrigem }),
       });
-      router.refresh();
     } finally {
-      setLoading(false);
+      setFetching(false);
     }
+    startTransition(() => router.refresh());
   }
 
   return (
-    <div className="space-y-3 rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-      <h2 className="text-sm font-medium text-slate-300">Editar</h2>
+    <div className="space-y-3 rounded-lg border border-border bg-surface p-4 shadow-sm">
+      <h2 className="text-h3 text-text-primary">Editar</h2>
 
       <div className="space-y-1.5">
-        <label className="text-xs text-slate-500">Status</label>
+        <label className="text-label text-text-tertiary">Status</label>
         <div className="flex gap-2">
           <Select value={novoStatus} onValueChange={setNovoStatus}>
             <SelectTrigger className="h-8 flex-1 text-xs">
@@ -95,10 +97,9 @@ export function LeadActions({ leadId, statusAtual, origemAtual }: Props) {
           </Select>
           <Button
             size="sm"
-            variant="outline"
             onClick={salvarStatus}
             disabled={loading}
-            className="h-8 text-xs"
+            className="h-8 bg-teal px-3 text-xs text-white hover:bg-teal-hover"
           >
             Salvar
           </Button>
@@ -106,7 +107,7 @@ export function LeadActions({ leadId, statusAtual, origemAtual }: Props) {
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs text-slate-500">Origem (manual)</label>
+        <label className="text-label text-text-tertiary">Origem (manual)</label>
         <div className="flex gap-2">
           <Select value={novaOrigem} onValueChange={setNovaOrigem}>
             <SelectTrigger className="h-8 flex-1 text-xs">
@@ -122,10 +123,9 @@ export function LeadActions({ leadId, statusAtual, origemAtual }: Props) {
           </Select>
           <Button
             size="sm"
-            variant="outline"
             onClick={salvarOrigem}
             disabled={loading}
-            className="h-8 text-xs"
+            className="h-8 bg-teal px-3 text-xs text-white hover:bg-teal-hover"
           >
             Salvar
           </Button>

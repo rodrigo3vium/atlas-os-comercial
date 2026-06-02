@@ -4,7 +4,7 @@ Sistema de inteligência comercial para clínicas médicas brasileiras. Captura 
 
 ---
 
-## Status do Projeto (2026-05-16)
+## Status do Projeto (2026-05-30)
 
 ### Concluído
 - [x] Schema completo aplicado no Supabase remoto (13 tabelas, RLS, RPCs, GRANTs)
@@ -12,12 +12,15 @@ Sistema de inteligência comercial para clínicas médicas brasileiras. Captura 
 - [x] Webhooks Evolution + Zapier/Plaud (ack-first)
 - [x] 7 crons configurados no Vercel (`vercel.json`)
 - [x] Todas as telas do painel (dashboard, leads, calls, whatsapp, rondas, configurações, auth)
+- [x] Jornada visual do lead em `/leads/[id]` (timeline cronológica unificando criação, conversas, calls e status final)
 - [x] Templates de email pt-BR (invite + recovery)
 - [x] Suite de testes (8 integração + 3 unitários)
 - [x] Script de provisionamento de usuários (`npm run admin:create-user`)
 - [x] Tipos TypeScript gerados do schema (`lib/supabase/types.ts`)
 - [x] Build limpo (zero erros de tipo)
 - [x] Repositório no GitHub
+- [x] **BA Hub IDV v2** — design system dark operacional (canvas `#05090B`, accent ciano `#20DDEB`, tipografia multi-fonte: Plus Jakarta Sans + IBM Plex Mono + Bebas Neue + Inter)
+- [x] Ambiente de demonstração com seed idempotente (24 leads, 14 conversas, 16 calls, 2 rondas)
 
 ### Próximos passos
 - [ ] Deploy no Vercel (conectar repo + env vars de produção)
@@ -26,6 +29,7 @@ Sistema de inteligência comercial para clínicas médicas brasileiras. Captura 
 - [ ] Configurar Evolution instance real em `/configuracoes`
 - [ ] Teste end-to-end: 1 mensagem WhatsApp real + 1 call de teste
 - [ ] Rodar testes de integração (requer Docker + `supabase start`)
+- [ ] Componentes IDV v2 avançados: StatCard, TrendPill, Sparkline, InsightBanner, StatusChip, AreaTrend, DonutDistribution
 
 ---
 
@@ -44,7 +48,7 @@ Sistema de inteligência comercial para clínicas médicas brasileiras. Captura 
 | Camada | Tecnologia |
 |---|---|
 | Framework | Next.js 15 (App Router) + TypeScript strict |
-| UI | Tailwind v3.4 + shadcn/ui + Recharts |
+| UI | Tailwind v3.4 + shadcn/ui + Recharts + BA Hub IDV v2 (dark) |
 | Banco | Supabase (PostgreSQL, schema `comercial`, região `sa-east-1`) |
 | IA — análise | Claude Sonnet 4.6 (`claude-sonnet-4-6`) |
 | IA — transcrição | OpenAI Whisper |
@@ -275,7 +279,7 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
 | `/calls` | Tabs: Aguardando Match / Analisadas |
 | `/calls/[id]` | Performance por 8 fases + diagnóstico + transcrição + match |
 | `/leads` | Tabela paginada de leads |
-| `/leads/[id]` | Dados + timeline + scores + edição de status |
+| `/leads/[id]` | Dados + jornada do lead (timeline vertical com conversas, calls e status final) + edição de status |
 | `/leads/pendentes` | Fila de classificação de origem em massa |
 | `/rondas` | Lista de rondas geradas |
 | `/rondas/[id]` | Visualização rica do snapshot |
@@ -416,7 +420,6 @@ Vai na conta do cliente. Prompt caching `ephemeral` ativo em todos os prompts de
 
 - LGPD compliance completo (consentimento automatizado, pseudonimização, right-to-forget)
 - 2FA
-- Dark mode
 - Análise de imagens/documentos via Claude Vision
 - Multi-tenancy SaaS
 - Exportação de dados (CSV)

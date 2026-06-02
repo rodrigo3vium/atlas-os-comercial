@@ -1,21 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 
 export function ReanalisarButton({ conversaId }: { conversaId: string }) {
-  const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [pending, startTransition] = useTransition();
   const router = useRouter();
+  const loading = fetching || pending;
 
   async function reanalisar() {
-    setLoading(true);
+    setFetching(true);
     try {
       await fetch(`/api/conversas/${conversaId}/reanalisar`, { method: "POST" });
-      router.refresh();
     } finally {
-      setLoading(false);
+      setFetching(false);
     }
+    startTransition(() => router.refresh());
   }
 
   return (

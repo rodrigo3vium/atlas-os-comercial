@@ -4,55 +4,169 @@
 
 @layer base {
   :root {
-    /* Background & surfaces */
-    --background: 220 20% 98%; /* #F8F9FB off-white levemente azulado */
-    --foreground: 222 47% 11%; /* slate-900 */
+    /* shadcn/ui — BA Hub IDV v2 (dark operacional) */
+    --background: #05090b;
+    --foreground: #f2ede4;
+    --card: #0b1114;
+    --card-foreground: #f2ede4;
+    --popover: #0b1114;
+    --popover-foreground: #f2ede4;
+    --primary: #20ddeb;
+    --primary-foreground: #05090b; /* escuro — contraste AA sobre ciano */
+    --secondary: #11171a;
+    --secondary-foreground: #c8c0b2;
+    --muted: #0b1114;
+    --muted-foreground: #c8c0b2;
+    --accent: #161d21;
+    --accent-foreground: #f2ede4;
+    --destructive: #e44935;
+    --destructive-foreground: #ffffff;
+    --border: rgba(255, 255, 255, 0.06);
+    --input: rgba(255, 255, 255, 0.1);
+    --ring: #20ddeb;
+    --radius: 6px;
+    --success: #34d399;
+    --success-foreground: #05090b;
+    --warning: #f2bd3b;
+    --warning-foreground: #05090b;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    /* Camadas de fundo (profundidade por luminância) */
+    --bg-deep: #020405;
+    --bg-hover: #161d21;
+    --bg-active: #1b2429;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-
-    /* Brand — cyan-500 */
-    --primary: 199 89% 48%; /* #0EA5E9 */
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 210 40% 96%; /* slate-100 */
-    --secondary-foreground: 222 47% 11%;
-
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%; /* slate-500 */
-
-    --accent: 199 89% 95%; /* cyan-100 */
-    --accent-foreground: 199 89% 30%;
-
-    --destructive: 0 84% 60%; /* red-500 */
-    --destructive-foreground: 0 0% 100%;
-
-    --success: 160 84% 39%; /* emerald-500 */
-    --success-foreground: 0 0% 100%;
-
-    --warning: 38 92% 50%; /* amber-500 */
-    --warning-foreground: 222 47% 11%;
-
-    --border: 220 13% 91%; /* slate-200 */
-    --input: 220 13% 91%;
-    --ring: 199 89% 48%;
-
-    --radius: 0.5rem;
+    /* Semantic tokens — hex / rgba direto */
+    --surface: #0b1114;
+    --surface-muted: #11171a;
+    --border-strong: rgba(255, 255, 255, 0.14);
+    --text-primary: #f2ede4;
+    --text-secondary: #c8c0b2;
+    --text-tertiary: #7d827d;
+    --text-muted: #7d827d;
+    --text-disabled: #5a5f5a;
+    --accent-teal: #20ddeb;
+    --accent-teal-hover: #38f3ff;
+    --accent-teal-soft: rgba(32, 221, 235, 0.12);
+    --accent-teal-text: #20ddeb;
+    --status-success: #34d399;
+    --status-success-soft: rgba(52, 211, 153, 0.12);
+    --status-warning: #f2bd3b;
+    --status-warning-soft: rgba(242, 189, 59, 0.12);
+    --status-danger: #e44935;
+    --status-danger-soft: rgba(228, 73, 53, 0.12);
+    --status-info: #20ddeb;
+    --status-info-soft: rgba(32, 221, 235, 0.12);
+    /* Profundidade por camada, não por sombra dura (doc §5) */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.36);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.44);
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 8px;
   }
 }
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: var(--border);
+  }
+  html {
+    background-color: var(--background);
   }
   body {
-    @apply bg-background font-sans text-foreground antialiased;
+    @apply font-sans antialiased;
+    background-color: var(--background);
+    color: var(--foreground);
     font-feature-settings:
       "rlig" 1,
       "calt" 1,
+      "cv02" 1,
+      "cv03" 1,
+      "cv04" 1,
       "cv11" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer components {
+  .text-h1 {
+    font-size: 28px;
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .text-h2 {
+    font-size: 22px;
+    line-height: 1.3;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+  .text-h3 {
+    font-size: 18px;
+    line-height: 1.4;
+    font-weight: 600;
+  }
+  .text-body-strong {
+    font-size: 14px;
+    line-height: 1.5;
+    font-weight: 500;
+  }
+  .text-caption {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .text-label {
+    font-size: 12px;
+    line-height: 1.3;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .text-kpi {
+    font-size: 32px;
+    line-height: 1.1;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .text-kpi-lg {
+    font-size: 40px;
+    line-height: 1.1;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* BA Hub IDV v2 — profundidade opt-in (doc §5) */
+  .surface-sheen {
+    position: relative;
+    background-image: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.035) 0%,
+      rgba(255, 255, 255, 0) 38%
+    );
+  }
+  .glow-cyan {
+    box-shadow:
+      inset 0 0 0 1px rgba(32, 221, 235, 0.22),
+      0 0 24px -10px rgba(32, 221, 235, 0.35);
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 200ms ease-out both;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

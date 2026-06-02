@@ -6,12 +6,12 @@ import { cn } from "@/lib/utils";
 
 function classificacaoCor(cls: string | null) {
   const mapa: Record<string, string> = {
-    excelente: "text-emerald-400",
-    bom: "text-cyan-400",
-    regular: "text-yellow-400",
-    insuficiente: "text-red-400",
+    excelente: "text-status-success",
+    bom: "text-teal",
+    regular: "text-status-warning",
+    insuficiente: "text-status-danger",
   };
-  return cls ? (mapa[cls] ?? "text-slate-400") : "text-slate-500";
+  return cls ? (mapa[cls] ?? "text-text-tertiary") : "text-text-muted";
 }
 
 function formatarData(iso: string | null) {
@@ -47,18 +47,20 @@ export default async function CallsPage() {
   ]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-slate-100">Calls</h1>
-        <p className="text-sm text-slate-400">Transcrições Plaud com análise de performance</p>
+        <h1 className="text-h1 text-text-primary">Calls</h1>
+        <p className="mt-1 text-sm text-text-secondary">
+          Transcrições Plaud com análise de performance
+        </p>
       </div>
 
       <Tabs defaultValue="aguardando">
-        <TabsList className="bg-slate-800">
+        <TabsList>
           <TabsTrigger value="aguardando">
             Aguardando match
             {(aguardando?.length ?? 0) > 0 && (
-              <span className="ml-1.5 rounded-full bg-cyan-500/20 px-1.5 py-0.5 text-[10px] text-cyan-300">
+              <span className="ml-1.5 rounded-full bg-teal-soft px-1.5 py-0.5 text-[10px] text-teal-soft-text">
                 {aguardando?.length}
               </span>
             )}
@@ -68,34 +70,32 @@ export default async function CallsPage() {
 
         <TabsContent value="aguardando" className="mt-4">
           {(aguardando ?? []).length === 0 ? (
-            <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-8 text-center">
-              <p className="text-sm text-slate-500">Nenhuma call aguardando match</p>
+            <div className="rounded-lg border border-border bg-surface p-10 text-center shadow-sm">
+              <p className="text-caption text-text-muted">Nenhuma call aguardando match</p>
             </div>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-slate-700">
+            <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-700 bg-slate-800/60">
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">Call</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">Data</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">Ação</th>
+                  <tr className="border-b border-border bg-surface-muted">
+                    <th className="text-label px-4 py-3 text-left text-text-tertiary">Call</th>
+                    <th className="text-label px-4 py-3 text-left text-text-tertiary">Data</th>
+                    <th className="text-label px-4 py-3 text-left text-text-tertiary">Status</th>
+                    <th className="text-label px-4 py-3 text-left text-text-tertiary">Ação</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-700/60">
+                <tbody className="divide-y divide-border">
                   {(aguardando ?? []).map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-800/40">
+                    <tr key={c.id} className="hover:bg-surface-muted">
                       <td className="px-4 py-3">
                         <Link
                           href={`/calls/${c.id}`}
-                          className="font-medium text-slate-200 hover:text-cyan-300"
+                          className="font-medium text-text-primary hover:text-teal"
                         >
                           {c.titulo ?? "Call sem título"}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-400">
+                      <td className="text-caption px-4 py-3 text-text-tertiary">
                         {formatarData(c.realizada_em)}
                       </td>
                       <td className="px-4 py-3">
@@ -104,7 +104,7 @@ export default async function CallsPage() {
                       <td className="px-4 py-3">
                         <Link
                           href={`/calls/${c.id}`}
-                          className="text-xs text-cyan-400 hover:underline"
+                          className="text-caption font-medium text-teal transition-colors hover:text-teal-hover"
                         >
                           Confirmar match →
                         </Link>
@@ -118,23 +118,23 @@ export default async function CallsPage() {
         </TabsContent>
 
         <TabsContent value="analisadas" className="mt-4">
-          <div className="overflow-hidden rounded-xl border border-slate-700">
+          <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-700 bg-slate-800/60">
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">Call</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">Lead</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">Data</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">
+                <tr className="border-b border-border bg-surface-muted">
+                  <th className="text-label px-4 py-3 text-left text-text-tertiary">Call</th>
+                  <th className="text-label px-4 py-3 text-left text-text-tertiary">Lead</th>
+                  <th className="text-label px-4 py-3 text-left text-text-tertiary">Data</th>
+                  <th className="text-label px-4 py-3 text-left text-text-tertiary">
                     Classificação
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">Score</th>
+                  <th className="text-label px-4 py-3 text-left text-text-tertiary">Score</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-700/60">
+              <tbody className="divide-y divide-border">
                 {(analisadas ?? []).length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-500">
+                    <td colSpan={5} className="text-caption px-4 py-10 text-center text-text-muted">
                       Nenhuma call analisada
                     </td>
                   </tr>
@@ -143,32 +143,32 @@ export default async function CallsPage() {
                     const lead = Array.isArray(c.lead) ? c.lead[0] : c.lead;
                     const analise = Array.isArray(c.analise) ? c.analise[0] : c.analise;
                     return (
-                      <tr key={c.id} className="hover:bg-slate-800/40">
+                      <tr key={c.id} className="hover:bg-surface-muted">
                         <td className="px-4 py-3">
                           <Link
                             href={`/calls/${c.id}`}
-                            className="font-medium text-slate-200 hover:text-cyan-300"
+                            className="font-medium text-text-primary hover:text-teal"
                           >
                             {c.titulo ?? "Call sem título"}
                           </Link>
                         </td>
-                        <td className="px-4 py-3 text-xs text-slate-400">
+                        <td className="text-caption px-4 py-3 text-text-tertiary">
                           {lead?.nome ?? lead?.telefone ?? "—"}
                         </td>
-                        <td className="px-4 py-3 text-xs text-slate-400">
+                        <td className="text-caption px-4 py-3 text-text-tertiary">
                           {formatarData(c.realizada_em)}
                         </td>
                         <td className="px-4 py-3">
                           <span
                             className={cn(
-                              "text-xs font-medium capitalize",
+                              "text-caption font-medium capitalize",
                               classificacaoCor(analise?.classificacao ?? null),
                             )}
                           >
                             {analise?.classificacao ?? "—"}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm font-semibold tabular-nums text-slate-300">
+                        <td className="px-4 py-3 text-sm font-semibold tabular-nums text-text-primary">
                           {analise?.score_geral ?? "—"}
                         </td>
                       </tr>

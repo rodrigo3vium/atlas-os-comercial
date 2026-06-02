@@ -51,17 +51,20 @@ export default async function LeadsPendentesPage() {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-slate-100">Leads pendentes de classificação</h1>
-        <p className="text-sm text-slate-400">
+        <h1 className="text-h1 text-text-primary">Leads pendentes de classificação</h1>
+        <p className="mt-1 text-sm text-text-secondary">
           {leadsComMensagens.length} leads aguardando classificação de origem
         </p>
       </div>
 
       {leadsComMensagens.length === 0 ? (
-        <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-8 text-center">
-          <p className="text-slate-400">Nenhum lead pendente de classificação.</p>
+        <div className="rounded-lg border border-border bg-surface p-10 text-center shadow-sm">
+          <p className="text-body-strong text-text-primary">Tudo classificado!</p>
+          <p className="text-caption mt-1 text-text-muted">
+            Nenhum lead pendente de classificação de origem.
+          </p>
         </div>
       ) : (
         <div className="space-y-3">

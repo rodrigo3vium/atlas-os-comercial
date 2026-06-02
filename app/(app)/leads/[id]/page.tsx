@@ -1,44 +1,169 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/server";
-import { Badge } from "@/components/ui/badge";
 import { LeadActions } from "./lead-actions";
+import { JourneyTimeline, type Marco } from "@/components/leads/journey-timeline";
+import { formatDataHora } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const STATUS_COR: Record<string, string> = {
-  novo: "bg-slate-500/20 text-slate-300",
-  em_atendimento: "bg-cyan-500/20 text-cyan-300",
-  sem_resposta: "bg-yellow-500/20 text-yellow-300",
-  agendou: "bg-blue-500/20 text-blue-300",
-  compareceu: "bg-purple-500/20 text-purple-300",
-  perdido: "bg-red-500/20 text-red-300",
-  fechou: "bg-emerald-500/20 text-emerald-300",
+  novo: "bg-surface-muted text-text-secondary",
+  em_atendimento: "bg-teal-soft text-teal-soft-text",
+  sem_resposta: "bg-status-warning-soft text-status-warning",
+  agendou: "bg-status-info-soft text-status-info",
+  compareceu: "bg-status-info-soft text-status-info",
+  perdido: "bg-status-danger-soft text-status-danger",
+  fechou: "bg-status-success-soft text-status-success",
 };
 
-function formatarDataHora(iso: string) {
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(iso));
+type ConversaLista = {
+  id: string;
+  status: string;
+  ultimo_score: number | null;
+  ultima_mensagem_em: string | null;
+  ultima_analise_em: string | null;
+};
+
+type CallLista = {
+  id: string;
+  titulo: string | null;
+  realizada_em: string | null;
+  match_status: string;
+  analise:
+    | { classificacao: string | null; score_geral: number | null }
+    | { classificacao: string | null; score_geral: number | null }[]
+    | null;
+};
+
+type LeadParaTimeline = {
+  status: string;
+  status_atualizado_em: string | null;
+  status_origem: string | null;
+  origem: string | null;
+  observacoes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+function rotularOrigem(origem: string | null): string {
+  if (!origem) return "desconhecida";
+  return origem.replace(/_/g, " ");
+}
+
+function construirMarcos({
+  lead,
+  conversas,
+  calls,
+}: {
+  lead: LeadParaTimeline;
+  conversas: ConversaLista[];
+  calls: CallLista[];
+}): Marco[] {
+  const marcos: Marco[] = [];
+
+  const criadoAt = new Date(lead.created_at);
+  marcos.push({
+    id: "criado",
+    at: criadoAt,
+    icone: "user-plus",
+    timestamp: formatDataHora(criadoAt),
+    headline: `Lead cadastrado · origem ${rotularOrigem(lead.origem)}`,
+    detalhe: lead.observacoes ?? undefined,
+  });
+
+  for (const c of conversas) {
+    const quando = c.ultima_mensagem_em ?? c.ultima_analise_em;
+    if (!quando) continue;
+    const at = new Date(quando);
+    marcos.push({
+      id: `conv-${c.id}`,
+      at,
+      icone: "message",
+      timestamp: formatDataHora(at),
+      headline: `Conversa WhatsApp · ${c.status}`,
+      detalhe:
+        c.ultimo_score != null ? (
+          <>
+            Score atendimento:{" "}
+            <span className="font-medium text-text-primary">{c.ultimo_score}/100</span>
+          </>
+        ) : (
+          "Sem análise ainda"
+        ),
+      body: (
+        <Link
+          href={`/whatsapp/${c.id}`}
+          className="text-caption font-medium text-teal hover:text-teal-hover"
+        >
+          Ver conversa →
+        </Link>
+      ),
+    });
+  }
+
+  for (const call of calls) {
+    if (!call.realizada_em) continue;
+    const at = new Date(call.realizada_em);
+    const analise = Array.isArray(call.analise) ? call.analise[0] : call.analise;
+    marcos.push({
+      id: `call-${call.id}`,
+      at,
+      icone: "phone",
+      timestamp: formatDataHora(at),
+      headline: call.titulo ? `Call · ${call.titulo}` : "Call gravada",
+      detalhe: analise ? (
+        <>
+          Classificação{" "}
+          <span className="font-medium capitalize text-text-primary">{analise.classificacao}</span>{" "}
+          · Score {analise.score_geral}/100
+        </>
+      ) : (
+        `Match: ${call.match_status}`
+      ),
+      body: (
+        <Link
+          href={`/calls/${call.id}`}
+          className="text-caption font-medium text-teal hover:text-teal-hover"
+        >
+          Ver análise →
+        </Link>
+      ),
+    });
+  }
+
+  const statusFinalAt = lead.status_atualizado_em ?? lead.updated_at;
+  if (lead.status === "fechou" || lead.status === "perdido") {
+    const at = new Date(statusFinalAt);
+    marcos.push({
+      id: "final",
+      at,
+      icone: lead.status === "fechou" ? "check" : "x",
+      variante: lead.status === "fechou" ? "sucesso" : "perda",
+      timestamp: formatDataHora(at),
+      headline: lead.status === "fechou" ? "Venda fechada" : "Lead perdido",
+      detalhe:
+        lead.status_origem === "manual" ? "Atualizado manualmente" : "Atualizado automaticamente",
+    });
+  } else if (lead.status === "agendou" || lead.status === "compareceu") {
+    const at = new Date(statusFinalAt);
+    marcos.push({
+      id: `status-${lead.status}`,
+      at,
+      icone: lead.status === "agendou" ? "calendar" : "clipboard",
+      timestamp: formatDataHora(at),
+      headline: lead.status === "agendou" ? "Avaliação agendada" : "Compareceu à avaliação",
+    });
+  }
+
+  return marcos.sort((a, b) => a.at.getTime() - b.at.getTime());
 }
 
 export default async function LeadDetalhe({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createServiceClient();
 
-  const { data: lead } = await supabase
-    .schema("comercial")
-    .from("leads")
-    .select("*")
-    .eq("id", id)
-    .single();
-
-  if (!lead) notFound();
-
-  const [{ data: conversas }, { data: calls }] = await Promise.all([
+  const [{ data: lead }, { data: conversas }, { data: calls }] = await Promise.all([
+    supabase.schema("comercial").from("leads").select("*").eq("id", id).single(),
     supabase
       .schema("comercial")
       .from("conversas")
@@ -55,21 +180,23 @@ export default async function LeadDetalhe({ params }: { params: Promise<{ id: st
       .order("realizada_em", { ascending: false, nullsFirst: false }),
   ]);
 
+  if (!lead) notFound();
+
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <Link href="/leads" className="text-sm text-slate-400 hover:text-slate-200">
+          <Link href="/leads" className="text-caption font-medium text-teal hover:text-teal-hover">
             ← Leads
           </Link>
-          <h1 className="mt-1 text-xl font-semibold text-slate-100">{lead.nome}</h1>
-          <p className="text-sm text-slate-400">{lead.telefone}</p>
+          <h1 className="text-h1 mt-1 text-text-primary">{lead.nome}</h1>
+          <p className="text-sm text-text-secondary">{lead.telefone}</p>
         </div>
         <span
           className={cn(
-            "rounded-full px-3 py-1 text-sm font-semibold capitalize",
-            STATUS_COR[lead.status] ?? "bg-slate-500/20 text-slate-300",
+            "text-caption rounded-full px-3 py-1 font-semibold capitalize",
+            STATUS_COR[lead.status] ?? "bg-surface-muted text-text-secondary",
           )}
         >
           {lead.status.replace("_", " ")}
@@ -79,58 +206,50 @@ export default async function LeadDetalhe({ params }: { params: Promise<{ id: st
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Info + ações */}
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-            <h2 className="mb-3 text-sm font-medium text-slate-300">Informações</h2>
-            <dl className="space-y-2 text-xs">
+          <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
+            <h2 className="text-h3 mb-3 text-text-primary">Informações</h2>
+            <dl className="space-y-2.5">
               {lead.email && (
                 <div>
-                  <dt className="text-slate-500">Email</dt>
-                  <dd className="text-slate-300">{lead.email}</dd>
+                  <dt className="text-label text-text-tertiary">Email</dt>
+                  <dd className="text-body-strong text-text-primary">{lead.email}</dd>
                 </div>
               )}
               <div>
-                <dt className="text-slate-500">Origem</dt>
+                <dt className="text-label text-text-tertiary">Origem</dt>
                 <dd className="flex items-center gap-1.5">
-                  <span className="text-slate-300">{lead.origem ?? "—"}</span>
+                  <span className="text-body-strong text-text-primary">{lead.origem ?? "—"}</span>
                   {lead.origem_status === "pendente" && (
-                    <Badge variant="secondary" className="text-[10px]">
+                    <span className="rounded-full bg-status-warning-soft px-1.5 py-0.5 text-[10px] font-medium text-status-warning">
                       pendente
-                    </Badge>
+                    </span>
                   )}
                   {lead.origem_status === "manual" && (
-                    <Badge variant="secondary" className="text-[10px]">
+                    <span className="rounded-full bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium text-text-tertiary">
                       manual
-                    </Badge>
+                    </span>
                   )}
                 </dd>
               </div>
               {lead.origem_confidence && (
                 <div>
-                  <dt className="text-slate-500">Confiança origem</dt>
-                  <dd className="text-slate-300">
+                  <dt className="text-label text-text-tertiary">Confiança origem</dt>
+                  <dd className="text-body-strong text-text-primary">
                     {Math.round(Number(lead.origem_confidence) * 100)}%
                   </dd>
                 </div>
               )}
               <div>
-                <dt className="text-slate-500">Cadastrado em</dt>
-                <dd className="text-slate-300">
+                <dt className="text-label text-text-tertiary">Cadastrado em</dt>
+                <dd className="text-body-strong text-text-primary">
                   {new Intl.DateTimeFormat("pt-BR").format(new Date(lead.created_at))}
                 </dd>
               </div>
-              {lead.status_origem === "manual" && (
-                <div>
-                  <dt className="text-slate-500">Status definido por</dt>
-                  <dd className="text-slate-400">Usuário (manual)</dd>
-                </div>
-              )}
             </dl>
             {lead.observacoes && (
-              <div className="mt-3 border-t border-slate-700 pt-3">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                  Observações
-                </p>
-                <p className="mt-1 text-xs text-slate-400">{lead.observacoes}</p>
+              <div className="mt-3 border-t border-border pt-3">
+                <p className="text-label text-text-tertiary">Observações</p>
+                <p className="text-caption mt-1 text-text-secondary">{lead.observacoes}</p>
               </div>
             )}
           </div>
@@ -139,89 +258,24 @@ export default async function LeadDetalhe({ params }: { params: Promise<{ id: st
         </div>
 
         {/* Timeline */}
-        <div className="space-y-4 lg:col-span-2">
-          {/* Conversas */}
-          <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-            <h2 className="mb-3 text-sm font-medium text-slate-300">
-              Conversas WhatsApp ({conversas?.length ?? 0})
-            </h2>
-            {(conversas ?? []).length === 0 ? (
-              <p className="text-sm text-slate-500">Nenhuma conversa registrada</p>
-            ) : (
-              <ul className="space-y-2">
-                {(conversas ?? []).map((c) => (
-                  <li key={c.id}>
-                    <Link
-                      href={`/whatsapp/${c.id}`}
-                      className="flex items-center justify-between rounded-lg px-2 py-2 hover:bg-slate-700/40"
-                    >
-                      <div>
-                        <p className="text-xs text-slate-500">
-                          {c.ultima_mensagem_em ? formatarDataHora(c.ultima_mensagem_em) : "—"}
-                        </p>
-                        <Badge variant="secondary" className="text-[10px] capitalize">
-                          {c.status}
-                        </Badge>
-                      </div>
-                      {c.ultimo_score != null && (
-                        <span
-                          className={cn(
-                            "text-sm font-semibold tabular-nums",
-                            c.ultimo_score >= 70
-                              ? "text-emerald-400"
-                              : c.ultimo_score >= 40
-                                ? "text-yellow-400"
-                                : "text-red-400",
-                          )}
-                        >
-                          {c.ultimo_score}
-                        </span>
-                      )}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          {/* Calls */}
-          <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-            <h2 className="mb-3 text-sm font-medium text-slate-300">
-              Calls ({calls?.length ?? 0})
-            </h2>
-            {(calls ?? []).length === 0 ? (
-              <p className="text-sm text-slate-500">Nenhuma call vinculada</p>
-            ) : (
-              <ul className="space-y-2">
-                {(calls ?? []).map((c) => {
-                  const analise = Array.isArray(c.analise) ? c.analise[0] : c.analise;
-                  return (
-                    <li key={c.id}>
-                      <Link
-                        href={`/calls/${c.id}`}
-                        className="flex items-center justify-between rounded-lg px-2 py-2 hover:bg-slate-700/40"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-medium text-slate-300">
-                            {c.titulo ?? "Call sem título"}
-                          </p>
-                          <p className="text-[10px] text-slate-500">
-                            {c.realizada_em
-                              ? new Intl.DateTimeFormat("pt-BR").format(new Date(c.realizada_em))
-                              : "—"}
-                          </p>
-                        </div>
-                        {analise?.score_geral != null && (
-                          <span className="text-sm font-semibold tabular-nums text-slate-300">
-                            {analise.score_geral}
-                          </span>
-                        )}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+        <div className="lg:col-span-2">
+          <div className="rounded-lg border border-border bg-surface p-6 shadow-sm">
+            <h2 className="text-h3 mb-6 text-text-primary">Jornada do lead</h2>
+            <JourneyTimeline
+              marcos={construirMarcos({
+                lead: {
+                  status: lead.status,
+                  status_atualizado_em: lead.status_atualizado_em ?? null,
+                  status_origem: lead.status_origem ?? null,
+                  origem: lead.origem ?? null,
+                  observacoes: lead.observacoes ?? null,
+                  created_at: lead.created_at,
+                  updated_at: lead.updated_at,
+                },
+                conversas: conversas ?? [],
+                calls: calls ?? [],
+              })}
+            />
           </div>
         </div>
       </div>

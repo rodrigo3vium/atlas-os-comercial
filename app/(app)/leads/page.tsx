@@ -3,13 +3,13 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 
 const STATUS_COR: Record<string, string> = {
-  novo: "bg-slate-500/20 text-slate-300",
-  em_atendimento: "bg-cyan-500/20 text-cyan-300",
-  sem_resposta: "bg-yellow-500/20 text-yellow-300",
-  agendou: "bg-blue-500/20 text-blue-300",
-  compareceu: "bg-purple-500/20 text-purple-300",
-  perdido: "bg-red-500/20 text-red-300",
-  fechou: "bg-emerald-500/20 text-emerald-300",
+  novo: "bg-surface-muted text-text-secondary",
+  em_atendimento: "bg-teal-soft text-teal-soft-text",
+  sem_resposta: "bg-status-warning-soft text-status-warning",
+  agendou: "bg-status-info-soft text-status-info",
+  compareceu: "bg-status-info-soft text-status-info",
+  perdido: "bg-status-danger-soft text-status-danger",
+  fechou: "bg-status-success-soft text-status-success",
 };
 
 const PAGE_SIZE = 50;
@@ -50,15 +50,15 @@ export default async function LeadsPage({
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-100">Leads</h1>
-          <p className="text-sm text-slate-400">{count ?? 0} leads cadastrados</p>
+          <h1 className="text-h1 text-text-primary">Leads</h1>
+          <p className="mt-1 text-sm text-text-secondary">{count ?? 0} leads cadastrados</p>
         </div>
         <Link
           href="/leads/pendentes"
-          className="rounded-lg bg-cyan-500/10 px-3 py-1.5 text-xs font-medium text-cyan-300 hover:bg-cyan-500/20"
+          className="text-caption hover:bg-teal/10 rounded-lg bg-teal-soft px-3 py-1.5 font-medium text-teal-soft-text transition-colors"
         >
           Classificar origens pendentes →
         </Link>
@@ -69,8 +69,10 @@ export default async function LeadsPage({
         <Link
           href="/leads"
           className={cn(
-            "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-            !status ? "bg-slate-600 text-slate-200" : "text-slate-400 hover:bg-slate-700",
+            "text-caption rounded-md px-2.5 py-1 font-medium transition-colors",
+            !status
+              ? "bg-teal-soft text-teal-soft-text"
+              : "text-text-tertiary hover:bg-surface-muted hover:text-text-primary",
           )}
         >
           Todos
@@ -80,8 +82,10 @@ export default async function LeadsPage({
             key={s}
             href={s === status ? "/leads" : `/leads?status=${s}`}
             className={cn(
-              "rounded-md px-2.5 py-1 text-xs font-medium capitalize transition-colors",
-              s === status ? "bg-slate-600 text-slate-200" : "text-slate-400 hover:bg-slate-700",
+              "text-caption rounded-md px-2.5 py-1 font-medium capitalize transition-colors",
+              s === status
+                ? "bg-teal-soft text-teal-soft-text"
+                : "text-text-tertiary hover:bg-surface-muted hover:text-text-primary",
             )}
           >
             {s.replace("_", " ")}
@@ -89,41 +93,41 @@ export default async function LeadsPage({
         ))}
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-700">
+      <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-700 bg-slate-800/60">
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">Nome</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">Telefone</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">Status</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">Origem</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">Cadastro</th>
+            <tr className="border-b border-border bg-surface-muted">
+              <th className="text-label px-4 py-3 text-left text-text-tertiary">Nome</th>
+              <th className="text-label px-4 py-3 text-left text-text-tertiary">Telefone</th>
+              <th className="text-label px-4 py-3 text-left text-text-tertiary">Status</th>
+              <th className="text-label px-4 py-3 text-left text-text-tertiary">Origem</th>
+              <th className="text-label px-4 py-3 text-left text-text-tertiary">Cadastro</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-700/60">
+          <tbody className="divide-y divide-border">
             {(leads ?? []).length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-500">
+                <td colSpan={5} className="text-caption px-4 py-10 text-center text-text-muted">
                   Nenhum lead encontrado
                 </td>
               </tr>
             ) : (
               (leads ?? []).map((l) => (
-                <tr key={l.id} className="hover:bg-slate-800/40">
+                <tr key={l.id} className="hover:bg-surface-muted">
                   <td className="px-4 py-3">
                     <Link
                       href={`/leads/${l.id}`}
-                      className="font-medium text-slate-200 hover:text-cyan-300"
+                      className="font-medium text-text-primary hover:text-teal"
                     >
                       {l.nome}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-xs text-slate-400">{l.telefone}</td>
+                  <td className="text-caption px-4 py-3 text-text-tertiary">{l.telefone}</td>
                   <td className="px-4 py-3">
                     <span
                       className={cn(
-                        "rounded-full px-2 py-0.5 text-[10px] font-medium capitalize",
-                        STATUS_COR[l.status] ?? "bg-slate-500/20 text-slate-300",
+                        "rounded-full px-2 py-0.5 text-[11px] font-medium capitalize",
+                        STATUS_COR[l.status] ?? "bg-surface-muted text-text-secondary",
                       )}
                     >
                       {l.status.replace("_", " ")}
@@ -131,14 +135,14 @@ export default async function LeadsPage({
                   </td>
                   <td className="px-4 py-3">
                     {l.origem ? (
-                      <span className="text-xs text-slate-400">{l.origem}</span>
+                      <span className="text-caption text-text-tertiary">{l.origem}</span>
                     ) : (
-                      <span className="text-xs text-slate-600">
+                      <span className="text-caption text-text-muted">
                         {l.origem_status === "pendente" ? "pendente" : "—"}
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-xs text-slate-500">
+                  <td className="text-caption px-4 py-3 text-text-muted">
                     {new Intl.DateTimeFormat("pt-BR").format(new Date(l.created_at))}
                   </td>
                 </tr>
@@ -154,18 +158,18 @@ export default async function LeadsPage({
           {pag > 1 && (
             <Link
               href={`/leads?pagina=${pag - 1}${status ? `&status=${status}` : ""}`}
-              className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-700"
+              className="text-caption rounded-lg border border-border bg-surface px-3 py-1.5 text-text-secondary transition-colors hover:bg-surface-muted"
             >
               ← Anterior
             </Link>
           )}
-          <span className="px-3 py-1.5 text-xs text-slate-500">
+          <span className="text-caption px-3 py-1.5 text-text-muted">
             {pag} / {totalPaginas}
           </span>
           {pag < totalPaginas && (
             <Link
               href={`/leads?pagina=${pag + 1}${status ? `&status=${status}` : ""}`}
-              className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-700"
+              className="text-caption rounded-lg border border-border bg-surface px-3 py-1.5 text-text-secondary transition-colors hover:bg-surface-muted"
             >
               Próxima →
             </Link>

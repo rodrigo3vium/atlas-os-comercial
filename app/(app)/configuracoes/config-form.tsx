@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,14 +24,17 @@ export function ConfigForm({ config }: { config: Configuracoes }) {
     threshold_alerta_imediato_whatsapp: String(config.threshold_alerta_imediato_whatsapp),
     janela_analise_mensagens: String(config.janela_analise_mensagens),
   });
-  const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [pending, startTransition] = useTransition();
   const [ok, setOk] = useState(false);
   const router = useRouter();
+  const loading = fetching || pending;
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
+    setFetching(true);
     setOk(false);
+    let sucesso = false;
     try {
       const res = await fetch("/api/configuracoes", {
         method: "POST",
@@ -51,13 +54,12 @@ export function ConfigForm({ config }: { config: Configuracoes }) {
           janela_analise_mensagens: Number(form.janela_analise_mensagens),
         }),
       });
-      if (res.ok) {
-        setOk(true);
-        router.refresh();
-      }
+      sucesso = res.ok;
+      if (sucesso) setOk(true);
     } finally {
-      setLoading(false);
+      setFetching(false);
     }
+    if (sucesso) startTransition(() => router.refresh());
   }
 
   function field(key: keyof typeof form, label: string, hint?: string) {

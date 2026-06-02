@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
@@ -32,12 +32,14 @@ type Props = {
 };
 
 export function ClassificarCard({ lead }: Props) {
-  const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [pending, startTransition] = useTransition();
   const [classificado, setClassificado] = useState(false);
   const router = useRouter();
+  const loading = fetching || pending;
 
   async function classificar(origem: string) {
-    setLoading(true);
+    setFetching(true);
     try {
       await fetch(`/api/leads/${lead.id}/classificar`, {
         method: "POST",
@@ -45,10 +47,10 @@ export function ClassificarCard({ lead }: Props) {
         body: JSON.stringify({ origem }),
       });
       setClassificado(true);
-      router.refresh();
     } finally {
-      setLoading(false);
+      setFetching(false);
     }
+    startTransition(() => router.refresh());
   }
 
   if (classificado) return null;
@@ -59,27 +61,27 @@ export function ClassificarCard({ lead }: Props) {
     : null;
 
   return (
-    <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4">
+    <div className="rounded-lg border border-border bg-surface p-5 shadow-sm">
       <div className="mb-3 flex items-start justify-between">
         <div>
-          <p className="text-sm font-medium text-slate-200">{lead.nome}</p>
-          <p className="text-xs text-slate-500">{lead.telefone}</p>
+          <p className="text-body-strong text-text-primary">{lead.nome}</p>
+          <p className="text-caption text-text-muted">{lead.telefone}</p>
         </div>
         {sugestao?.origem_detectada && (
           <div className="text-right">
-            <p className="text-[10px] text-slate-500">Sugestão IA</p>
-            <p className="text-xs font-medium text-cyan-300">{sugestao.origem_detectada}</p>
-            {confidence && <p className="text-[10px] text-slate-500">{confidence}% confiança</p>}
+            <p className="text-[11px] text-text-muted">Sugestão IA</p>
+            <p className="text-caption font-medium text-teal">{sugestao.origem_detectada}</p>
+            {confidence && <p className="text-[11px] text-text-muted">{confidence}% confiança</p>}
           </div>
         )}
       </div>
 
       {/* Primeiras mensagens */}
       {lead.primeirasMensagens.length > 0 && (
-        <div className="mb-3 space-y-1 rounded-lg bg-slate-700/30 p-2.5">
+        <div className="mb-3 space-y-1 rounded-md bg-surface-muted p-3">
           {lead.primeirasMensagens.map((m, i) => (
-            <p key={i} className="text-xs text-slate-400">
-              <span className="font-medium text-slate-500">
+            <p key={i} className="text-caption text-text-secondary">
+              <span className="font-medium text-text-tertiary">
                 {m.remetente === "lead" ? "Lead" : "Clínica"}:
               </span>{" "}
               {m.conteudo ?? "[mídia]"}
@@ -93,7 +95,7 @@ export function ClassificarCard({ lead }: Props) {
         {sugestao?.origem_detectada && (
           <Button
             size="sm"
-            className="h-7 bg-cyan-600 px-3 text-xs hover:bg-cyan-500"
+            className="h-7 bg-teal px-3 text-xs text-white hover:bg-teal-hover"
             onClick={() => classificar(sugestao.origem_detectada!)}
             disabled={loading}
           >

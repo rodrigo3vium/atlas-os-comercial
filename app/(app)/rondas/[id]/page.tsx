@@ -1,14 +1,12 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
+import { corPorScore } from "@/lib/format";
+import { ScoreKpiCard } from "@/components/rondas/score-kpi-card";
+import { EvolucaoChart } from "@/components/rondas/evolucao-chart";
+import { ItensCriticosTable } from "@/components/rondas/itens-criticos-table";
 import type { SnapshotWhatsapp, SnapshotCalls } from "@/lib/modules/gerador-ronda";
-
-function scoreColor(score: number) {
-  if (score >= 80) return "text-emerald-400";
-  if (score >= 60) return "text-blue-400";
-  if (score >= 40) return "text-amber-400";
-  return "text-red-400";
-}
 
 function BarChart({
   label,
@@ -24,243 +22,269 @@ function BarChart({
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
     <div className="flex items-center gap-2">
-      <span className="w-28 shrink-0 truncate text-xs text-slate-500">{label}</span>
-      <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-700">
+      <span className="text-caption w-28 shrink-0 truncate text-text-tertiary">{label}</span>
+      <div className="h-2 flex-1 overflow-hidden rounded-full bg-border">
         <div className={cn("h-full rounded-full", color)} style={{ width: `${pct}%` }} />
       </div>
-      <span className="w-8 text-right text-xs text-slate-400">{value}</span>
+      <span className="text-caption w-8 text-right text-text-secondary">{value}</span>
     </div>
   );
 }
 
+function SectionCard({
+  titulo,
+  hint,
+  children,
+}: {
+  titulo: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-lg border border-border bg-surface p-4 shadow-sm">
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <h3 className="text-label text-text-tertiary">{titulo}</h3>
+        {hint && <span className="text-caption text-text-muted">{hint}</span>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
 function RondaWhatsapp({ snap }: { snap: SnapshotWhatsapp }) {
+  const scoreMedio = snap.score_medio;
+  const corScore = corPorScore(scoreMedio);
+  const historico = snap.historico_recente ?? [];
+  const topNegativas = snap.top_tags_negativas.slice(0, 5);
   const maxDist = Math.max(...snap.distribuicao_score.map((d) => d.total), 1);
-  const maxTag = Math.max(...snap.top_tags_negativas.map((t) => t.total), 1);
+  const maxPositivas = Math.max(...snap.top_tags_positivas.map((t) => t.total), 1);
 
   return (
-    <div className="space-y-4">
-      {/* KPIs */}
+    <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          { label: "Conversas", valor: snap.total_conversas, cls: "text-cyan-300" },
-          {
-            label: "Score médio",
-            valor: snap.score_medio !== null ? snap.score_medio.toFixed(1) : "—",
-            cls: snap.score_medio !== null ? scoreColor(snap.score_medio) : "text-slate-500",
-          },
-          { label: "Score +alto", valor: snap.score_mais_alto ?? "—", cls: "text-emerald-400" },
-          { label: "Score +baixo", valor: snap.score_mais_baixo ?? "—", cls: "text-red-400" },
-        ].map((k) => (
-          <div key={k.label} className="rounded-lg border border-slate-700 bg-slate-800/40 p-3">
-            <p className="text-[10px] uppercase tracking-wide text-slate-500">{k.label}</p>
-            <p className={cn("text-2xl font-bold", k.cls)}>{k.valor}</p>
-          </div>
-        ))}
+        <ScoreKpiCard
+          label={snap.numero_ronda ? `Score Global · R${snap.numero_ronda}` : "Score Global"}
+          valor={scoreMedio !== null ? `${scoreMedio.toFixed(1)}/100` : "—"}
+          valorClassName={corScore.text}
+          delta={snap.delta_pct ?? undefined}
+          destaque
+        />
+        <ScoreKpiCard label="Conversas" valor={snap.total_conversas} />
+        <ScoreKpiCard
+          label="Score +alto"
+          valor={snap.score_mais_alto ?? "—"}
+          valorClassName="text-status-success"
+        />
+        <ScoreKpiCard
+          label="Score +baixo"
+          valor={snap.score_mais_baixo ?? "—"}
+          valorClassName="text-status-danger"
+        />
       </div>
 
       {snap.total_conversas === 0 && (
-        <p className="text-sm text-slate-500">Nenhuma conversa analisada neste período.</p>
+        <div className="rounded-lg border border-border bg-surface-muted p-8 text-center">
+          <p className="text-body-strong text-text-primary">Nenhuma conversa analisada</p>
+          <p className="text-caption mt-1 text-text-muted">
+            Nenhuma conversa foi analisada neste período.
+          </p>
+        </div>
+      )}
+
+      {historico.length >= 2 && (
+        <SectionCard
+          titulo="Evolução da ronda"
+          hint={`Últimas ${historico.length} rondas WhatsApp`}
+        >
+          <EvolucaoChart itens={historico} />
+        </SectionCard>
+      )}
+
+      {topNegativas.length > 0 && (
+        <SectionCard titulo="Itens com menor score" hint="Top tags negativas mais frequentes">
+          <ItensCriticosTable
+            tipo="whatsapp"
+            itens={topNegativas}
+            totalConversas={snap.total_conversas}
+          />
+        </SectionCard>
       )}
 
       {snap.distribuicao_score.length > 0 && (
-        <section className="space-y-2 rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-          <h3 className="text-xs font-medium uppercase tracking-wide text-slate-400">
-            Distribuição de scores
-          </h3>
-          {snap.distribuicao_score.map((d) => (
-            <BarChart
-              key={d.faixa}
-              label={d.faixa}
-              value={d.total}
-              max={maxDist}
-              color="bg-cyan-500"
-            />
-          ))}
-        </section>
-      )}
-
-      {snap.top_tags_negativas.length > 0 && (
-        <section className="space-y-2 rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-          <h3 className="text-xs font-medium uppercase tracking-wide text-slate-400">
-            Principais problemas
-          </h3>
-          {snap.top_tags_negativas.slice(0, 8).map((t) => (
-            <BarChart key={t.tag} label={t.tag} value={t.total} max={maxTag} color="bg-red-500" />
-          ))}
-        </section>
-      )}
-
-      {snap.top_tags_positivas.length > 0 && (
-        <section className="space-y-2 rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-          <h3 className="text-xs font-medium uppercase tracking-wide text-slate-400">
-            Pontos positivos
-          </h3>
-          {snap.top_tags_positivas.slice(0, 8).map((t) => {
-            const maxPos = Math.max(...snap.top_tags_positivas.map((x) => x.total), 1);
-            return (
+        <SectionCard titulo="Distribuição de scores">
+          <div className="space-y-2">
+            {snap.distribuicao_score.map((d) => (
               <BarChart
-                key={t.tag}
-                label={t.tag}
-                value={t.total}
-                max={maxPos}
-                color="bg-emerald-500"
+                key={d.faixa}
+                label={d.faixa}
+                value={d.total}
+                max={maxDist}
+                color="bg-teal"
               />
-            );
-          })}
-        </section>
+            ))}
+          </div>
+        </SectionCard>
       )}
 
       {snap.conversas_criticas.length > 0 && (
-        <section className="space-y-2 rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-          <h3 className="text-xs font-medium uppercase tracking-wide text-slate-400">
-            Conversas críticas (score &lt; 40)
-          </h3>
-          {snap.conversas_criticas.map((c) => (
-            <div
-              key={c.conversa_id}
-              className="flex items-start justify-between border-b border-slate-700/60 py-2 last:border-0"
-            >
-              <div>
-                <p className="text-sm text-slate-200">{c.lead_nome ?? "Lead sem nome"}</p>
-                {c.resumo && <p className="mt-0.5 text-xs text-slate-500">{c.resumo}</p>}
-              </div>
-              <span className="ml-4 shrink-0 text-lg font-bold text-red-400">{c.score}</span>
-            </div>
-          ))}
-        </section>
+        <SectionCard titulo="Conversas críticas" hint="Score < 40">
+          <ul className="divide-y divide-border">
+            {snap.conversas_criticas.map((c) => (
+              <li
+                key={c.conversa_id}
+                className="flex items-start justify-between py-2.5 first:pt-0 last:pb-0"
+              >
+                <div>
+                  <p className="text-body-strong text-text-primary">
+                    {c.lead_nome ?? "Lead sem nome"}
+                  </p>
+                  {c.resumo && <p className="text-caption mt-0.5 text-text-muted">{c.resumo}</p>}
+                </div>
+                <span className="text-kpi ml-4 shrink-0 font-bold text-status-danger">
+                  {c.score}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
+      )}
+
+      {snap.top_tags_positivas.length > 0 && (
+        <SectionCard titulo="Pontos positivos">
+          <div className="space-y-2">
+            {snap.top_tags_positivas.slice(0, 8).map((t) => (
+              <BarChart
+                key={t.tag}
+                label={t.tag.replace(/_/g, " ")}
+                value={t.total}
+                max={maxPositivas}
+                color="bg-status-success"
+              />
+            ))}
+          </div>
+        </SectionCard>
       )}
 
       {snap.origens.length > 0 && (
-        <section className="rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-          <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-400">
-            Origens
-          </h3>
+        <SectionCard titulo="Origens">
           <div className="flex flex-wrap gap-2">
             {snap.origens.map((o) => (
               <span
                 key={o.origem}
-                className="rounded-full bg-slate-700/60 px-3 py-1 text-xs text-slate-300"
+                className="text-caption rounded-full bg-teal-soft px-3 py-1 font-medium text-teal-soft-text"
               >
-                {o.origem}: <span className="font-medium text-slate-100">{o.total}</span>
+                {o.origem}: <span className="font-semibold">{o.total}</span>
               </span>
             ))}
           </div>
-        </section>
+        </SectionCard>
       )}
     </div>
   );
 }
 
 function RondaCalls({ snap }: { snap: SnapshotCalls }) {
-  const fasesLabels: Record<string, string> = {
-    preparacao: "Preparação",
-    abertura: "Abertura",
-    diagnostico: "Diagnóstico",
-    apresentacao_clinica: "Apresentação clínica",
-    apresentacao_investimento: "Apresentação investimento",
-    fechamento: "Fechamento",
-    objecoes: "Objeções",
-    sabotadores: "Sabotadores",
-  };
   const classColors: Record<string, string> = {
-    excelente: "bg-emerald-500/20 text-emerald-300",
-    bom: "bg-blue-500/20 text-blue-300",
-    regular: "bg-amber-500/20 text-amber-300",
-    insuficiente: "bg-red-500/20 text-red-300",
+    excelente: "bg-status-success-soft text-status-success",
+    bom: "bg-teal-soft text-teal-soft-text",
+    regular: "bg-status-warning-soft text-status-warning",
+    insuficiente: "bg-status-danger-soft text-status-danger",
   };
 
+  const countPor = (c: string) =>
+    snap.distribuicao_classificacao.find((d) => d.classificacao === c)?.total ?? 0;
+
+  const fasesOrdenadas = Object.entries(snap.media_por_fase)
+    .filter((entry): entry is [string, number] => entry[1] !== null)
+    .map(([fase, score]) => ({ fase, score }))
+    .sort((a, b) => a.score - b.score);
+
+  const corScore = corPorScore(snap.score_medio);
+  const historico = snap.historico_recente ?? [];
+
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        {[
-          { label: "Calls analisadas", valor: snap.total_calls, cls: "text-cyan-300" },
-          {
-            label: "Score médio",
-            valor: snap.score_medio !== null ? snap.score_medio.toFixed(1) : "—",
-            cls: snap.score_medio !== null ? scoreColor(snap.score_medio) : "text-slate-500",
-          },
-        ].map((k) => (
-          <div key={k.label} className="rounded-lg border border-slate-700 bg-slate-800/40 p-3">
-            <p className="text-[10px] uppercase tracking-wide text-slate-500">{k.label}</p>
-            <p className={cn("text-2xl font-bold", k.cls)}>{k.valor}</p>
-          </div>
-        ))}
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <ScoreKpiCard
+          label={snap.numero_ronda ? `Score Global · R${snap.numero_ronda}` : "Score Global"}
+          valor={snap.score_medio !== null ? `${snap.score_medio.toFixed(1)}/100` : "—"}
+          valorClassName={corScore.text}
+          delta={snap.delta_pct ?? undefined}
+          destaque
+        />
+        <ScoreKpiCard label="Calls analisadas" valor={snap.total_calls} />
+        <ScoreKpiCard
+          label="Excelentes"
+          valor={countPor("excelente")}
+          valorClassName="text-status-success"
+        />
+        <ScoreKpiCard
+          label="Insuficientes"
+          valor={countPor("insuficiente")}
+          valorClassName="text-status-danger"
+        />
       </div>
 
       {snap.total_calls === 0 && (
-        <p className="text-sm text-slate-500">Nenhuma call analisada neste período.</p>
+        <div className="rounded-lg border border-border bg-surface-muted p-8 text-center">
+          <p className="text-body-strong text-text-primary">Nenhuma call analisada</p>
+          <p className="text-caption mt-1 text-text-muted">
+            Nenhuma call foi analisada neste período.
+          </p>
+        </div>
+      )}
+
+      {historico.length >= 2 && (
+        <SectionCard titulo="Evolução da ronda" hint={`Últimas ${historico.length} rondas Calls`}>
+          <EvolucaoChart itens={historico} />
+        </SectionCard>
+      )}
+
+      {fasesOrdenadas.length > 0 && (
+        <SectionCard titulo="Itens com menor score" hint="Fases ranqueadas pelo score médio">
+          <ItensCriticosTable tipo="calls" itens={fasesOrdenadas} />
+        </SectionCard>
       )}
 
       {snap.distribuicao_classificacao.length > 0 && (
-        <section className="space-y-2 rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-          <h3 className="text-xs font-medium uppercase tracking-wide text-slate-400">
-            Distribuição por classificação
-          </h3>
+        <SectionCard titulo="Distribuição por classificação">
           <div className="flex flex-wrap gap-2">
             {snap.distribuicao_classificacao.map((d) => (
               <span
                 key={d.classificacao}
                 className={cn(
-                  "rounded-full px-3 py-1 text-xs font-medium capitalize",
-                  classColors[d.classificacao] ?? "bg-slate-500/20 text-slate-400",
+                  "text-caption rounded-full px-3 py-1 font-medium capitalize",
+                  classColors[d.classificacao] ?? "bg-surface-muted text-text-secondary",
                 )}
               >
                 {d.classificacao}: {d.total}
               </span>
             ))}
           </div>
-        </section>
-      )}
-
-      {Object.keys(snap.media_por_fase).length > 0 && (
-        <section className="space-y-2 rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-          <h3 className="text-xs font-medium uppercase tracking-wide text-slate-400">
-            Média por fase
-          </h3>
-          {Object.entries(snap.media_por_fase)
-            .filter(([, v]) => v !== null)
-            .sort((a, b) => (a[1] as number) - (b[1] as number))
-            .map(([fase, val]) => {
-              const v = val as number;
-              const color =
-                v >= 80
-                  ? "bg-emerald-500"
-                  : v >= 60
-                    ? "bg-blue-500"
-                    : v >= 40
-                      ? "bg-amber-500"
-                      : "bg-red-500";
-              return (
-                <BarChart
-                  key={fase}
-                  label={fasesLabels[fase] ?? fase}
-                  value={v}
-                  max={100}
-                  color={color}
-                />
-              );
-            })}
-        </section>
+        </SectionCard>
       )}
 
       {snap.calls_insuficientes.length > 0 && (
-        <section className="space-y-2 rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-          <h3 className="text-xs font-medium uppercase tracking-wide text-slate-400">
-            Calls insuficientes
-          </h3>
-          {snap.calls_insuficientes.map((c) => (
-            <div
-              key={c.call_id}
-              className="flex items-start justify-between border-b border-slate-700/60 py-2 last:border-0"
-            >
-              <div>
-                <p className="text-sm text-slate-200">{c.lead_nome ?? "Sem match"}</p>
-                {c.diagnostico && <p className="mt-0.5 text-xs text-slate-500">{c.diagnostico}</p>}
-              </div>
-              <span className="ml-4 shrink-0 text-lg font-bold text-red-400">{c.score}</span>
-            </div>
-          ))}
-        </section>
+        <SectionCard titulo="Calls insuficientes">
+          <ul className="divide-y divide-border">
+            {snap.calls_insuficientes.map((c) => (
+              <li
+                key={c.call_id}
+                className="flex items-start justify-between py-2.5 first:pt-0 last:pb-0"
+              >
+                <div>
+                  <p className="text-body-strong text-text-primary">{c.lead_nome ?? "Sem match"}</p>
+                  {c.diagnostico && (
+                    <p className="text-caption mt-0.5 text-text-muted">{c.diagnostico}</p>
+                  )}
+                </div>
+                <span className="text-kpi ml-4 shrink-0 font-bold text-status-danger">
+                  {c.score}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
       )}
     </div>
   );
@@ -285,37 +309,36 @@ export default async function RondaDetalhe({ params }: { params: Promise<{ id: s
   const fim = new Intl.DateTimeFormat("pt-BR").format(new Date(ronda.periodo_fim));
   const tipoLabel = ronda.tipo === "whatsapp" ? "WhatsApp" : "Calls";
 
+  const statusCor =
+    ronda.status === "enviada"
+      ? "bg-status-success-soft text-status-success"
+      : ronda.status === "erro"
+        ? "bg-status-danger-soft text-status-danger"
+        : "bg-surface-muted text-text-secondary";
+
   return (
-    <div className="max-w-3xl space-y-4">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-100">
-            Ronda {tipoLabel} — {inicio} a {fim}
-          </h1>
-          <div className="mt-1 flex items-center gap-3">
-            <span
-              className={cn(
-                "rounded-full px-2 py-0.5 text-[10px] font-medium",
-                ronda.status === "enviada"
-                  ? "bg-emerald-500/20 text-emerald-300"
-                  : ronda.status === "erro"
-                    ? "bg-red-500/20 text-red-300"
-                    : "bg-slate-500/20 text-slate-400",
-              )}
-            >
-              {ronda.status}
+    <div className="max-w-3xl space-y-5">
+      <div>
+        <Link href="/rondas" className="text-caption font-medium text-teal hover:text-teal-hover">
+          ← Rondas
+        </Link>
+        <h1 className="text-h1 mt-1 text-text-primary">
+          Ronda {tipoLabel} — {inicio} a {fim}
+        </h1>
+        <div className="mt-2 flex items-center gap-3">
+          <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", statusCor)}>
+            {ronda.status}
+          </span>
+          {ronda.enviada_em && (
+            <span className="text-caption text-text-muted">
+              Enviada em{" "}
+              {new Intl.DateTimeFormat("pt-BR", {
+                dateStyle: "short",
+                timeStyle: "short",
+              }).format(new Date(ronda.enviada_em))}
             </span>
-            {ronda.enviada_em && (
-              <span className="text-xs text-slate-500">
-                Enviada em{" "}
-                {new Intl.DateTimeFormat("pt-BR", {
-                  dateStyle: "short",
-                  timeStyle: "short",
-                }).format(new Date(ronda.enviada_em))}
-              </span>
-            )}
-            {ronda.vazia && <span className="text-xs text-slate-600">Período vazio</span>}
-          </div>
+          )}
+          {ronda.vazia && <span className="text-caption text-text-muted">Período vazio</span>}
         </div>
       </div>
 
@@ -326,7 +349,7 @@ export default async function RondaDetalhe({ params }: { params: Promise<{ id: s
       )}
 
       {Array.isArray(ronda.destinatarios) && (ronda.destinatarios as string[]).length > 0 && (
-        <p className="text-xs text-slate-600">
+        <p className="text-caption text-text-muted">
           Enviada para: {(ronda.destinatarios as string[]).join(", ")}
         </p>
       )}

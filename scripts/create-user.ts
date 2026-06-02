@@ -93,7 +93,11 @@ async function main() {
   console.log(`✓ Usuário criado: ${userId}`);
 
   // 2. Inserir em comercial.autorizados
-  await supabase.from("autorizados").insert({ user_id: userId, role }).throwOnError();
+  await supabase
+    .schema("comercial")
+    .from("autorizados")
+    .insert({ user_id: userId, role })
+    .throwOnError();
 
   console.log(`✓ Inserido em autorizados como ${role}`);
 

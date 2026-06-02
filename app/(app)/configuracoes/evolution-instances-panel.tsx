@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,16 +29,18 @@ const EMPTY: FormState = {
 export function EvolutionInstancesPanel({ instances }: { instances: Instance[] }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY);
-  const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [pending, startTransition] = useTransition();
   const [testando, setTestando] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ id: string; ok: boolean; msg: string } | null>(
     null,
   );
   const router = useRouter();
+  const loading = fetching || pending;
 
   async function criar(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
+    setFetching(true);
     try {
       await fetch("/api/evolution-instances", {
         method: "POST",
@@ -47,10 +49,10 @@ export function EvolutionInstancesPanel({ instances }: { instances: Instance[] }
       });
       setForm(EMPTY);
       setShowForm(false);
-      router.refresh();
     } finally {
-      setLoading(false);
+      setFetching(false);
     }
+    startTransition(() => router.refresh());
   }
 
   async function toggleAtiva(inst: Instance) {
@@ -59,13 +61,13 @@ export function EvolutionInstancesPanel({ instances }: { instances: Instance[] }
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ativa: !inst.ativa }),
     });
-    router.refresh();
+    startTransition(() => router.refresh());
   }
 
   async function deletar(id: string) {
     if (!confirm("Remover esta instância?")) return;
     await fetch(`/api/evolution-instances/${id}`, { method: "DELETE" });
-    router.refresh();
+    startTransition(() => router.refresh());
   }
 
   async function testar(inst: Instance) {
@@ -143,6 +145,7 @@ export function EvolutionInstancesPanel({ instances }: { instances: Instance[] }
               variant="ghost"
               className="h-6 px-2 text-[10px]"
               onClick={() => toggleAtiva(inst)}
+              disabled={loading}
             >
               {inst.ativa ? "Desativar" : "Ativar"}
             </Button>
@@ -151,6 +154,7 @@ export function EvolutionInstancesPanel({ instances }: { instances: Instance[] }
               variant="ghost"
               className="h-6 px-2 text-[10px] text-red-400 hover:text-red-300"
               onClick={() => deletar(inst.id)}
+              disabled={loading}
             >
               Remover
             </Button>

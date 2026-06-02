@@ -1,10 +1,13 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { MessageSquare, Phone } from "lucide-react";
 import { createServiceClient } from "@/lib/supabase/server";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { ScoreChart } from "@/components/dashboard/score-chart";
 import { PeriodoSelector } from "@/components/dashboard/periodo-selector";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 function calcularPeriodo(dias: number) {
   const fim = new Date();
@@ -85,104 +88,142 @@ async function DashboardConteudo({ dias }: { dias: number }) {
           valor={d.kpis.score_medio_whatsapp}
           delta={d.kpis.delta_score_whatsapp}
           sufixo="/100"
-          destaque
         />
         <KpiCard
           titulo="Score médio Calls"
           valor={d.kpis.score_medio_calls}
           delta={d.kpis.delta_score_calls}
           sufixo="/100"
-          destaque
         />
         <KpiCard titulo="Taxa de fechamento" valor={d.kpis.taxa_fechamento} sufixo="%" />
       </div>
 
       {/* Gráfico */}
       {d.serie_temporal.length > 0 && (
-        <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-          <h2 className="mb-4 text-sm font-medium text-slate-400">
-            Evolução de scores (12 semanas)
-          </h2>
-          <ScoreChart dados={d.serie_temporal} />
-        </div>
+        <Card>
+          <div className="flex flex-col gap-1 p-6 pb-4">
+            <h2 className="text-h3 text-text-primary">Evolução de scores</h2>
+            <p className="text-caption text-text-tertiary">Últimas 12 semanas</p>
+          </div>
+          <CardContent>
+            <ScoreChart dados={d.serie_temporal} />
+          </CardContent>
+        </Card>
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Conversas recentes */}
-        <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-medium text-slate-300">Conversas recentes</h2>
-            <Link href="/whatsapp" className="text-xs text-cyan-400 hover:underline">
-              Ver todas
+        <Card>
+          <div className="flex items-start justify-between p-6 pb-4">
+            <div>
+              <h2 className="text-h3 text-text-primary">Conversas recentes</h2>
+              <p className="text-caption mt-1 text-text-tertiary">
+                Últimas conversas WhatsApp analisadas
+              </p>
+            </div>
+            <Link
+              href="/whatsapp"
+              className="text-caption font-medium text-teal transition-colors hover:text-teal-hover"
+            >
+              Ver todas →
             </Link>
           </div>
-          {d.conversas_recentes.length === 0 ? (
-            <p className="text-sm text-slate-500">Nenhuma conversa no período</p>
-          ) : (
-            <ul className="space-y-2">
-              {d.conversas_recentes.map((c) => (
-                <li key={c.id}>
-                  <Link
-                    href={`/whatsapp/${c.id}`}
-                    className="flex items-center justify-between rounded-lg px-2 py-1.5 hover:bg-slate-700/60"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-200">
-                        {c.lead_nome ?? c.lead_telefone}
-                      </p>
-                      {c.ultimo_resumo && (
-                        <p className="truncate text-xs text-slate-500">{c.ultimo_resumo}</p>
+          <CardContent>
+            {d.conversas_recentes.length === 0 ? (
+              <div className="flex flex-col items-center justify-center px-6 py-10 text-center">
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-surface-muted">
+                  <MessageSquare className="h-6 w-6 text-text-muted" />
+                </div>
+                <p className="text-body-strong text-text-primary">Nenhuma conversa no período</p>
+                <p className="text-caption mt-1 max-w-xs text-text-muted">
+                  As conversas dos últimos {dias} dias aparecerão aqui assim que houver atividade.
+                </p>
+              </div>
+            ) : (
+              <ul className="space-y-1">
+                {d.conversas_recentes.map((c) => (
+                  <li key={c.id}>
+                    <Link
+                      href={`/whatsapp/${c.id}`}
+                      className="flex items-center justify-between rounded-md px-2 py-2 transition-colors hover:bg-surface-muted"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-body-strong truncate text-text-primary">
+                          {c.lead_nome ?? c.lead_telefone}
+                        </p>
+                        {c.ultimo_resumo && (
+                          <p className="text-caption truncate text-text-muted">{c.ultimo_resumo}</p>
+                        )}
+                      </div>
+                      {c.ultimo_score != null && (
+                        <Badge
+                          variant={scoreBadgeVariant(c.ultimo_score)}
+                          className="ml-2 shrink-0"
+                        >
+                          {c.ultimo_score}
+                        </Badge>
                       )}
-                    </div>
-                    {c.ultimo_score != null && (
-                      <Badge variant={scoreBadgeVariant(c.ultimo_score)} className="ml-2 shrink-0">
-                        {c.ultimo_score}
-                      </Badge>
-                    )}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Calls recentes */}
-        <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-medium text-slate-300">Calls recentes</h2>
-            <Link href="/calls" className="text-xs text-cyan-400 hover:underline">
-              Ver todas
+        <Card>
+          <div className="flex items-start justify-between p-6 pb-4">
+            <div>
+              <h2 className="text-h3 text-text-primary">Calls recentes</h2>
+              <p className="text-caption mt-1 text-text-tertiary">Transcrições Plaud analisadas</p>
+            </div>
+            <Link
+              href="/calls"
+              className="text-caption font-medium text-teal transition-colors hover:text-teal-hover"
+            >
+              Ver todas →
             </Link>
           </div>
-          {d.calls_recentes.length === 0 ? (
-            <p className="text-sm text-slate-500">Nenhuma call no período</p>
-          ) : (
-            <ul className="space-y-2">
-              {d.calls_recentes.map((c) => (
-                <li key={c.id}>
-                  <Link
-                    href={`/calls/${c.id}`}
-                    className="flex items-center justify-between rounded-lg px-2 py-1.5 hover:bg-slate-700/60"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-200">
-                        {c.lead_nome ?? c.titulo ?? "Call sem título"}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {c.classificacao ?? "—"} · {c.match_status}
-                      </p>
-                    </div>
-                    {c.score_geral != null && (
-                      <Badge variant={scoreBadgeVariant(c.score_geral)} className="ml-2 shrink-0">
-                        {c.score_geral}
-                      </Badge>
-                    )}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+          <CardContent>
+            {d.calls_recentes.length === 0 ? (
+              <div className="flex flex-col items-center justify-center px-6 py-10 text-center">
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-surface-muted">
+                  <Phone className="h-6 w-6 text-text-muted" />
+                </div>
+                <p className="text-body-strong text-text-primary">Nenhuma call no período</p>
+                <p className="text-caption mt-1 max-w-xs text-text-muted">
+                  As calls dos últimos {dias} dias aparecerão aqui assim que forem processadas.
+                </p>
+              </div>
+            ) : (
+              <ul className="space-y-1">
+                {d.calls_recentes.map((c) => (
+                  <li key={c.id}>
+                    <Link
+                      href={`/calls/${c.id}`}
+                      className="flex items-center justify-between rounded-md px-2 py-2 transition-colors hover:bg-surface-muted"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-body-strong truncate text-text-primary">
+                          {c.lead_nome ?? c.titulo ?? "Call sem título"}
+                        </p>
+                        <p className="text-caption text-text-muted">
+                          {c.classificacao ?? "—"} · {c.match_status}
+                        </p>
+                      </div>
+                      {c.score_geral != null && (
+                        <Badge variant={scoreBadgeVariant(c.score_geral)} className="ml-2 shrink-0">
+                          {c.score_geral}
+                        </Badge>
+                      )}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
@@ -197,11 +238,11 @@ export default async function DashboardPage({
   const dias = Math.min(Math.max(Number(diasParam ?? "7"), 7), 90) || 7;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8">
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-100">Dashboard</h1>
-          <p className="text-sm text-slate-400">Visão consolidada do comercial</p>
+          <h1 className="text-h1 text-text-primary">Dashboard</h1>
+          <p className="mt-1 text-sm text-text-secondary">Visão consolidada do comercial</p>
         </div>
         <Suspense>
           <PeriodoSelector />
@@ -210,10 +251,15 @@ export default async function DashboardPage({
 
       <Suspense
         fallback={
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-28 animate-pulse rounded-xl bg-slate-800" />
-            ))}
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              {[...Array(4)].map((_, i) => (
+                <div
+                  key={i}
+                  className="h-32 animate-pulse rounded-lg border border-border bg-surface-muted"
+                />
+              ))}
+            </div>
           </div>
         }
       >

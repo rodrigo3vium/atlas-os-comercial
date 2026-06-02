@@ -3,6 +3,13 @@ import { log } from "@/lib/log";
 
 export type TipoRonda = "whatsapp" | "calls";
 
+export type HistoricoRondaItem = {
+  periodo_inicio: string;
+  periodo_fim: string;
+  score_medio: number | null;
+  rotulo: string;
+};
+
 export type SnapshotWhatsapp = {
   tipo: "whatsapp";
   periodo: { inicio: string; fim: string };
@@ -20,6 +27,10 @@ export type SnapshotWhatsapp = {
     resumo: string | null;
   }[];
   origens: { origem: string; total: number }[];
+  score_anterior?: number | null;
+  delta_pct?: number | null;
+  historico_recente?: HistoricoRondaItem[];
+  numero_ronda?: number;
 };
 
 export type SnapshotCalls = {
@@ -35,6 +46,10 @@ export type SnapshotCalls = {
     score: number;
     diagnostico: string | null;
   }[];
+  score_anterior?: number | null;
+  delta_pct?: number | null;
+  historico_recente?: HistoricoRondaItem[];
+  numero_ronda?: number;
 };
 
 export type ResultadoGeracaoRonda = {
@@ -52,10 +67,20 @@ export async function gerarRonda(
   const inicio = periodoInicio.toISOString();
   const fim = periodoFim.toISOString();
 
-  const snapshot =
+  const snapshotBase =
     tipo === "whatsapp"
       ? await gerarSnapshotWhatsapp(inicio, fim, supabase)
       : await gerarSnapshotCalls(inicio, fim, supabase);
+
+  const contexto = await calcularContextoHistorico(
+    tipo,
+    inicio,
+    fim,
+    snapshotBase.score_medio,
+    supabase,
+  );
+
+  const snapshot = { ...snapshotBase, ...contexto };
 
   const vazia =
     tipo === "whatsapp"
@@ -83,6 +108,82 @@ export async function gerarRonda(
   log.info("gerador_ronda.gerado", { tipo, inicio, fim, vazia, rondaId: ronda!.id });
 
   return { tipo, rondaId: ronda!.id, vazia };
+}
+
+async function calcularContextoHistorico(
+  tipo: TipoRonda,
+  inicio: string,
+  fim: string,
+  scoreAtual: number | null,
+  supabase: SupabaseClient,
+): Promise<{
+  score_anterior: number | null;
+  delta_pct: number | null;
+  historico_recente: HistoricoRondaItem[];
+  numero_ronda: number;
+}> {
+  const { count: totalAnteriores } = await supabase
+    .schema("comercial")
+    .from("rondas")
+    .select("id", { count: "exact", head: true })
+    .eq("tipo", tipo)
+    .lt("periodo_inicio", inicio)
+    .throwOnError();
+
+  const { data: anteriores } = await supabase
+    .schema("comercial")
+    .from("rondas")
+    .select("periodo_inicio, periodo_fim, snapshot")
+    .eq("tipo", tipo)
+    .lt("periodo_inicio", inicio)
+    .order("periodo_inicio", { ascending: false })
+    .limit(3)
+    .throwOnError();
+
+  const anterioresAsc = (anteriores ?? [])
+    .map((r) => {
+      const snap = r.snapshot as { score_medio?: number | null } | null;
+      return {
+        periodo_inicio: r.periodo_inicio as string,
+        periodo_fim: r.periodo_fim as string,
+        score_medio: snap?.score_medio ?? null,
+      };
+    })
+    .reverse();
+
+  const numeroRonda = (totalAnteriores ?? 0) + 1;
+  const baseNumero = numeroRonda - anterioresAsc.length;
+
+  const historico_recente: HistoricoRondaItem[] = [
+    ...anterioresAsc.map((r, idx) => ({
+      ...r,
+      rotulo: `R${baseNumero + idx}`,
+    })),
+    {
+      periodo_inicio: inicio,
+      periodo_fim: fim,
+      score_medio: scoreAtual,
+      rotulo: `R${numeroRonda}`,
+    },
+  ];
+
+  const score_anterior =
+    [...anterioresAsc]
+      .reverse()
+      .map((r) => r.score_medio)
+      .find((s): s is number => s !== null) ?? null;
+
+  const delta_pct =
+    scoreAtual !== null && score_anterior !== null && score_anterior > 0
+      ? Math.round(((scoreAtual - score_anterior) / score_anterior) * 1000) / 10
+      : null;
+
+  return {
+    score_anterior,
+    delta_pct,
+    historico_recente,
+    numero_ronda: numeroRonda,
+  };
 }
 
 async function gerarSnapshotWhatsapp(
