@@ -13,7 +13,9 @@
     "typecheck": "tsc --noEmit",
     "prepare": "husky",
     "admin:create-user": "tsx scripts/create-user.ts",
-    "db:seed-demo": "psql \"$DEMO_DATABASE_URL\" -f supabase/seeds/_demo.sql"
+    "db:seed-demo": "psql \"$DEMO_DATABASE_URL\" -f supabase/seeds/_demo.sql",
+    "demo:analises": "tsx scripts/processar-analises-demo.ts",
+    "demo:rebuild": "npm run db:seed-demo && npm run demo:analises"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",
