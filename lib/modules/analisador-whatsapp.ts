@@ -94,7 +94,7 @@ async function analisarConversa(
 
   const response = await client.messages.create({
     model: MODELO,
-    max_tokens: 1024,
+    max_tokens: 2048,
     system: [
       {
         type: "text",
