@@ -2,6 +2,14 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
 export async function updateSession(request: NextRequest) {
+  // Modo demo: libera acesso público sem login. Ativado só no deploy do demo
+  // via env (DEMO_PUBLIC_ACCESS="true"). Forks de cliente nascem sem o flag,
+  // portanto continuam protegidos por padrão. As rotas de escrita seguem
+  // exigindo usuário (retornam 401), então o demo é efetivamente read-only.
+  if (process.env.DEMO_PUBLIC_ACCESS === "true") {
+    return NextResponse.next({ request });
+  }
+
   const pathname = request.nextUrl.pathname;
   const isAuthRoute = pathname.startsWith("/auth");
   const isLoginRoute = pathname === "/login";
